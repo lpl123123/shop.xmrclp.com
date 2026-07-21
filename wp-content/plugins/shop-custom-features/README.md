@@ -8,7 +8,8 @@ WordPress / WooCommerce / Woodmart 站点定制功能插件。
 
 - 前台右下角浮动聊天窗口
 - 访客可发送消息，后台客服可回复
-- **后台可编辑任意聊天消息内容**
+- **后台会话页实时同步**访客新消息（约 3 秒轮询）
+- **后台可编辑任意聊天消息内容及时间**
 - 后台路径：**在线聊天 → 聊天消息 / 聊天设置**
 
 ### 2. 商家收款码
@@ -17,18 +18,38 @@ WordPress / WooCommerce / Woodmart 站点定制功能插件。
 - 在商品编辑页右侧 **绑定商家收款码** 选择商家
 - 前台商品详情页自动展示商家名称与收款码
 
-### 3. 自定义金额在线支付
+### 3. 自定义金额在线支付（买单流程）
 
-- 使用短代码创建支付页面
-- 用户输入金额后预览商品，点击支付进入 WooCommerce 正常结算流程
+参考即达 Pay 流程实现：
+
+1. **选择商品**：使用 WooCommerce 正常商城功能浏览商品
+2. **点击「买单」**：商品列表和详情页显示红色「买单」按钮
+3. **输入金额匹配商品**：跳转到在线支付页，输入金额后自动匹配同价格的商品
+4. **确认支付**：显示匹配到的商品信息，点击「PayNow 我要买单」进入 WooCommerce 正常结算流程
 
 ## 安装步骤
 
 1. 将 `shop-custom-features` 文件夹放入 `wp-content/plugins/`
 2. 在 WordPress 后台 **插件** 中启用 **Shop Custom Features**
 3. 确保 **WooCommerce** 已启用
+4. 插件激活后会自动创建「在线支付」页面
 
 ## 使用说明
+
+### 在线支付 / 买单
+
+1. 进入 **WooCommerce → 在线支付设置**，确认支付页面和商户名称
+2. 确保商品价格为固定金额（如 ¥498、¥8800），系统按金额精确匹配商品
+3. 前台商品页点击 **买单**，或直接进入 **在线支付** 页面输入金额
+4. 匹配成功后点击支付，跳转 WooCommerce 结算页完成付款
+
+**注意**：商品金额需与输入金额完全一致才能匹配。例如商品定价 ¥8800.00，用户输入 8800 即可匹配。
+
+短代码（已自动添加到支付页面）：
+
+```
+[shop_custom_payment]
+```
 
 ### 聊天功能
 
@@ -43,28 +64,12 @@ WordPress / WooCommerce / Woodmart 站点定制功能插件。
 3. 编辑商品，在 **绑定商家收款码** 中选择对应商家
 4. 保存后前台商品页会显示收款码
 
-### 在线支付页面
-
-1. 新建页面，例如标题「在线支付」
-2. 在页面内容中添加短代码：
-
-```
-[shop_custom_payment]
-```
-
-可选参数：
-
-```
-[shop_custom_payment title="在线支付" description="请输入支付金额" min_amount="0.01" max_amount="50000"]
-```
-
-3. 发布页面后，用户输入金额点击 **立即支付** 将跳转到 WooCommerce 结算页
-
 ## 技术说明
 
 - 聊天消息存储在 `{prefix}scf_chat_messages` 数据表
-- 自定义支付使用隐藏的 WooCommerce 虚拟商品，通过购物车动态定价
-- 商品页收款码挂载在 `woocommerce_single_product_summary` 钩子（优先级 35）
+- 商品匹配通过 WooCommerce `_price` 元数据精确查询
+- 匹配成功后添加真实商品到购物车，走标准 WooCommerce  checkout
+- 支付方式选择（微信/支付宝/PayPal）记录到订单 meta，实际网关需在 WooCommerce 配置
 
 ## 文件结构
 
@@ -75,7 +80,7 @@ shop-custom-features/
 │   ├── class-scf-install.php     # 安装与数据表
 │   ├── class-scf-chat.php        # 聊天功能
 │   ├── class-scf-merchant.php    # 商家收款码
-│   └── class-scf-custom-payment.php # 自定义支付
+│   └── class-scf-custom-payment.php # 自定义支付/买单
 └── assets/
     ├── css/
     └── js/

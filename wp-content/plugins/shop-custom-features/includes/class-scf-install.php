@@ -18,6 +18,7 @@ class SCF_Install {
 	public static function activate() {
 		self::create_chat_table();
 		self::ensure_payment_product();
+		self::ensure_payment_page();
 		flush_rewrite_rules();
 	}
 
@@ -94,5 +95,36 @@ class SCF_Install {
 		update_option( 'scf_custom_payment_product_id', $product_id );
 
 		return $product_id;
+	}
+
+	/**
+	 * Create online payment page if not exists.
+	 *
+	 * @return int Page ID.
+	 */
+	public static function ensure_payment_page() {
+		$page_id = (int) get_option( 'scf_payment_page_id', 0 );
+
+		if ( $page_id && 'page' === get_post_type( $page_id ) ) {
+			return $page_id;
+		}
+
+		$page_id = wp_insert_post(
+			array(
+				'post_title'   => __( '在线支付', 'shop-custom-features' ),
+				'post_content' => '[shop_custom_payment]',
+				'post_status'  => 'publish',
+				'post_type'    => 'page',
+			),
+			true
+		);
+
+		if ( is_wp_error( $page_id ) ) {
+			return 0;
+		}
+
+		update_option( 'scf_payment_page_id', $page_id );
+
+		return $page_id;
 	}
 }
