@@ -10,6 +10,8 @@
 		return;
 	}
 
+	var chatIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>';
+
 	var state = {
 		open: false,
 		lastId: 0,
@@ -39,9 +41,31 @@
 		container.scrollTop = container.scrollHeight;
 	}
 
+	function setPanelOpen(isOpen) {
+		state.open = isOpen;
+		var panel = root.querySelector('.scf-chat-panel');
+		var toggle = root.querySelector('.scf-chat-toggle');
+
+		if (panel) {
+			panel.classList.toggle('is-open', isOpen);
+		}
+
+		if (toggle) {
+			toggle.classList.toggle('is-hidden', isOpen);
+			toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+		}
+
+		if (isOpen) {
+			fetchMessages();
+			startPolling();
+		} else {
+			stopPolling();
+		}
+	}
+
 	function buildUI() {
 		root.innerHTML =
-			'<button type="button" class="scf-chat-toggle" aria-label="打开聊天">💬</button>' +
+			'<button type="button" class="scf-chat-toggle" aria-label="打开聊天" aria-expanded="false">' + chatIcon + '</button>' +
 			'<div class="scf-chat-panel" role="dialog" aria-label="' + escapeHtml(scfChat.title) + '">' +
 				'<div class="scf-chat-header">' +
 					'<h3>' + escapeHtml(scfChat.title) + '</h3>' +
@@ -63,25 +87,15 @@
 			'</div>';
 
 		var toggle = root.querySelector('.scf-chat-toggle');
-		var panel = root.querySelector('.scf-chat-panel');
 		var closeBtn = root.querySelector('.scf-chat-close');
 		var form = root.querySelector('#scf-chat-form');
 
 		toggle.addEventListener('click', function () {
-			state.open = !state.open;
-			panel.classList.toggle('is-open', state.open);
-			if (state.open) {
-				fetchMessages();
-				startPolling();
-			} else {
-				stopPolling();
-			}
+			setPanelOpen(true);
 		});
 
 		closeBtn.addEventListener('click', function () {
-			state.open = false;
-			panel.classList.remove('is-open');
-			stopPolling();
+			setPanelOpen(false);
 		});
 
 		form.addEventListener('submit', function (e) {
@@ -182,7 +196,7 @@
 
 	function startPolling() {
 		stopPolling();
-		state.polling = setInterval(fetchMessages, 4000);
+		state.polling = setInterval(fetchMessages, 3000);
 	}
 
 	function stopPolling() {

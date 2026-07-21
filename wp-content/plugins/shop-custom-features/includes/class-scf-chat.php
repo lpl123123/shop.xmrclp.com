@@ -49,6 +49,11 @@ class SCF_Chat {
 		add_action( 'wp_ajax_nopriv_scf_send_chat_message', array( $this, 'ajax_send_message' ) );
 		add_action( 'wp_ajax_scf_fetch_chat_messages', array( $this, 'ajax_fetch_messages' ) );
 		add_action( 'wp_ajax_nopriv_scf_fetch_chat_messages', array( $this, 'ajax_fetch_messages' ) );
+
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
+		add_action( 'wp_ajax_scf_admin_fetch_session_messages', array( $this, 'ajax_admin_fetch_session_messages' ) );
+		add_action( 'wp_ajax_scf_admin_send_reply', array( $this, 'ajax_admin_send_reply' ) );
+		add_action( 'wp_ajax_scf_admin_fetch_sessions', array( $this, 'ajax_admin_fetch_sessions' ) );
 	}
 
 	/**
@@ -137,6 +142,80 @@ class SCF_Chat {
 				'welcome'     => get_option( 'scf_chat_welcome', __( '您好！有什么可以帮您的吗？', 'shop-custom-features' ) ),
 				'placeholder' => get_option( 'scf_chat_placeholder', __( '请输入消息...', 'shop-custom-features' ) ),
 				'sessionId'   => $this->get_session_id(),
+			)
+		);
+	}
+
+	/**
+	 * Enqueue admin chat management assets.
+	 *
+	 * @param string $hook Current admin page hook.
+	 */
+	public function enqueue_admin_assets( $hook ) {
+		if ( 'toplevel_page_scf-chat' !== $hook ) {
+			return;
+		}
+
+		wp_enqueue_style(
+			'scf-chat-admin',
+			SCF_PLUGIN_URL . 'assets/css/chat-admin.css',
+			array(),
+			SCF_VERSION
+		);
+
+		wp_enqueue_script(
+			'scf-chat-admin',
+			SCF_PLUGIN_URL . 'assets/js/chat-admin.js',
+			array( 'jquery' ),
+			SCF_VERSION,
+			true
+		);
+
+		$session_filter = isset( $_GET['session_id'] ) ? sanitize_text_field( wp_unslash( $_GET['session_id'] ) ) : '';
+		$last_id        = 0;
+		$delete_nonces  = array();
+
+		if ( $session_filter && ! isset( $_GET['edit'] ) ) {
+			global $wpdb;
+			$table = $this->get_table_name();
+			$last_id = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT MAX(id) FROM {$table} WHERE session_id = %s",
+					$session_filter
+				)
+			);
+
+			$session_messages = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT id FROM {$table} WHERE session_id = %s",
+					$session_filter
+				)
+			);
+
+			foreach ( $session_messages ? $session_messages : array() as $message ) {
+				$delete_nonces[ $message->id ] = wp_create_nonce( 'scf_delete_message_' . $message->id );
+			}
+		}
+
+		wp_localize_script(
+			'scf-chat-admin',
+			'scfChatAdmin',
+			array(
+				'ajaxUrl'         => admin_url( 'admin-ajax.php' ),
+				'nonce'           => wp_create_nonce( 'scf_chat_admin_nonce' ),
+				'sessionId'       => $session_filter,
+				'lastId'          => $last_id,
+				'sessionUrlBase'  => admin_url( 'admin.php?page=scf-chat&session_id=__SESSION__' ),
+				'editUrlBase'     => admin_url( 'admin.php?page=scf-chat&session_id=__SESSION__&edit=__ID__' ),
+				'deleteUrlBase'   => admin_url( 'admin-post.php?action=scf_delete_chat_message&id=__ID__&session_id=__SESSION__&_wpnonce=__NONCE__' ),
+				'deleteNonces'    => $delete_nonces,
+				'labels'          => array(
+					'admin'         => __( '客服', 'shop-custom-features' ),
+					'edit'          => __( '编辑', 'shop-custom-features' ),
+					'delete'        => __( '删除', 'shop-custom-features' ),
+					'view'          => __( '查看会话', 'shop-custom-features' ),
+					'confirmDelete' => __( '确定删除此消息？', 'shop-custom-features' ),
+				),
 			)
 		);
 	}
@@ -275,6 +354,163 @@ class SCF_Chat {
 	}
 
 	/**
+	 * AJAX: admin fetch session messages with polling support.
+	 */
+	public function ajax_admin_fetch_session_messages() {
+		check_ajax_referer( 'scf_chat_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( '权限不足', 'shop-custom-features' ) ), 403 );
+		}
+
+		$session_id = isset( $_POST['session_id'] ) ? sanitize_text_field( wp_unslash( $_POST['session_id'] ) ) : '';
+		$after_id   = isset( $_POST['after_id'] ) ? absint( $_POST['after_id'] ) : 0;
+
+		if ( ! preg_match( '/^[a-f0-9]{32}$/', $session_id ) ) {
+			wp_send_json_error( array( 'message' => __( '会话无效', 'shop-custom-features' ) ), 400 );
+		}
+
+		global $wpdb;
+		$table = $this->get_table_name();
+
+		if ( $after_id > 0 ) {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$table} WHERE session_id = %s AND id > %d ORDER BY id ASC",
+					$session_id,
+					$after_id
+				)
+			);
+		} else {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$table} WHERE session_id = %s ORDER BY id ASC",
+					$session_id
+				)
+			);
+		}
+
+		$messages = array_map( array( $this, 'format_message_row' ), $rows ? $rows : array() );
+
+		wp_send_json_success( array( 'messages' => $messages ) );
+	}
+
+	/**
+	 * AJAX: admin send reply without page reload.
+	 */
+	public function ajax_admin_send_reply() {
+		check_ajax_referer( 'scf_chat_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( '权限不足', 'shop-custom-features' ) ), 403 );
+		}
+
+		$session_id = isset( $_POST['session_id'] ) ? sanitize_text_field( wp_unslash( $_POST['session_id'] ) ) : '';
+		$message    = isset( $_POST['message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['message'] ) ) : '';
+
+		if ( ! preg_match( '/^[a-f0-9]{32}$/', $session_id ) || '' === trim( $message ) ) {
+			wp_send_json_error( array( 'message' => __( '参数无效', 'shop-custom-features' ) ), 400 );
+		}
+
+		$user = wp_get_current_user();
+
+		global $wpdb;
+
+		$inserted = $wpdb->insert(
+			$this->get_table_name(),
+			array(
+				'session_id'   => $session_id,
+				'sender_type'  => 'admin',
+				'sender_name'  => $user->display_name ? $user->display_name : __( '客服', 'shop-custom-features' ),
+				'sender_email' => $user->user_email,
+				'message'      => $message,
+				'is_read'      => 1,
+				'created_at'   => current_time( 'mysql' ),
+				'updated_at'   => current_time( 'mysql' ),
+			),
+			array( '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' )
+		);
+
+		if ( ! $inserted ) {
+			wp_send_json_error( array( 'message' => __( '发送失败', 'shop-custom-features' ) ), 500 );
+		}
+
+		wp_send_json_success(
+			array(
+				'message'      => $this->format_message_row(
+					$wpdb->get_row(
+						$wpdb->prepare(
+							'SELECT * FROM ' . $this->get_table_name() . ' WHERE id = %d',
+							$wpdb->insert_id
+						)
+					)
+				),
+				'delete_nonce' => wp_create_nonce( 'scf_delete_message_' . $wpdb->insert_id ),
+			)
+		);
+	}
+
+	/**
+	 * AJAX: admin fetch latest sessions for list page.
+	 */
+	public function ajax_admin_fetch_sessions() {
+		check_ajax_referer( 'scf_chat_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( '权限不足', 'shop-custom-features' ) ), 403 );
+		}
+
+		global $wpdb;
+		$table = $this->get_table_name();
+
+		$rows = $wpdb->get_results(
+			"SELECT m.* FROM {$table} m
+			INNER JOIN (
+				SELECT session_id, MAX(id) AS max_id
+				FROM {$table}
+				GROUP BY session_id
+			) latest ON m.id = latest.max_id
+			ORDER BY m.created_at DESC
+			LIMIT 100"
+		);
+
+		$sessions = array();
+
+		foreach ( $rows ? $rows : array() as $row ) {
+			$sessions[] = array(
+				'session_id'  => $row->session_id,
+				'sender_name' => $row->sender_name,
+				'preview'     => wp_trim_words( $row->message, 12, '...' ),
+				'created_at'  => mysql2date( 'Y-m-d H:i', $row->created_at ),
+			);
+		}
+
+		wp_send_json_success( array( 'sessions' => $sessions ) );
+	}
+
+	/**
+	 * Parse datetime-local input into MySQL datetime.
+	 *
+	 * @param string $datetime Local datetime string.
+	 * @return string|null
+	 */
+	private function parse_datetime_input( $datetime ) {
+		$datetime = trim( $datetime );
+
+		if ( '' === $datetime ) {
+			return null;
+		}
+
+		$timestamp = strtotime( $datetime );
+
+		if ( ! $timestamp ) {
+			return null;
+		}
+
+		return wp_date( 'Y-m-d H:i:s', $timestamp );
+	}
+
+	/**
 	 * Format message row for JSON output.
 	 *
 	 * @param object|null $row Database row.
@@ -338,57 +574,59 @@ class SCF_Chat {
 			<h1><?php esc_html_e( '聊天消息管理', 'shop-custom-features' ); ?></h1>
 
 			<?php if ( $session_filter ) : ?>
-				<p>
-					<a href="<?php echo esc_url( admin_url( 'admin.php?page=scf-chat' ) ); ?>">&larr; <?php esc_html_e( '返回会话列表', 'shop-custom-features' ); ?></a>
-				</p>
-
-				<h2><?php esc_html_e( '会话详情', 'shop-custom-features' ); ?></h2>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom:20px;">
-					<?php wp_nonce_field( 'scf_admin_reply', 'scf_admin_reply_nonce' ); ?>
-					<input type="hidden" name="action" value="scf_reply_chat_message">
-					<input type="hidden" name="session_id" value="<?php echo esc_attr( $session_filter ); ?>">
+				<div class="scf-admin-chat-wrap">
 					<p>
-						<label for="scf_admin_reply"><strong><?php esc_html_e( '回复访客', 'shop-custom-features' ); ?></strong></label><br>
-						<textarea id="scf_admin_reply" name="message" rows="3" class="large-text" required></textarea>
+						<a href="<?php echo esc_url( admin_url( 'admin.php?page=scf-chat' ) ); ?>">&larr; <?php esc_html_e( '返回会话列表', 'shop-custom-features' ); ?></a>
+						<span class="scf-admin-chat-status">
+							<span class="scf-admin-chat-status__dot"></span>
+							<?php esc_html_e( '实时同步中', 'shop-custom-features' ); ?>
+						</span>
 					</p>
-					<?php submit_button( __( '发送回复', 'shop-custom-features' ) ); ?>
-				</form>
 
-				<table class="widefat striped">
-					<thead>
-						<tr>
-							<th><?php esc_html_e( '时间', 'shop-custom-features' ); ?></th>
-							<th><?php esc_html_e( '发送者', 'shop-custom-features' ); ?></th>
-							<th><?php esc_html_e( '消息内容', 'shop-custom-features' ); ?></th>
-							<th><?php esc_html_e( '操作', 'shop-custom-features' ); ?></th>
-						</tr>
-					</thead>
-					<tbody>
+					<h2><?php esc_html_e( '会话详情', 'shop-custom-features' ); ?></h2>
+
+					<div id="scf-admin-chat-thread" class="scf-admin-chat-thread">
 						<?php if ( empty( $messages ) ) : ?>
-							<tr><td colspan="4"><?php esc_html_e( '暂无消息', 'shop-custom-features' ); ?></td></tr>
+							<p class="description"><?php esc_html_e( '暂无消息', 'shop-custom-features' ); ?></p>
 						<?php else : ?>
 							<?php foreach ( $messages as $message ) : ?>
-								<tr>
-									<td><?php echo esc_html( mysql2date( 'Y-m-d H:i', $message->created_at ) ); ?></td>
-									<td>
-										<?php echo esc_html( $message->sender_name ); ?>
-										<?php if ( 'admin' === $message->sender_type ) : ?>
-											<span class="description">(<?php esc_html_e( '客服', 'shop-custom-features' ); ?>)</span>
-										<?php endif; ?>
-									</td>
-									<td><?php echo esc_html( $message->message ); ?></td>
-									<td>
-										<a href="<?php echo esc_url( admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $session_filter ) . '&edit=' . $message->id ) ); ?>"><?php esc_html_e( '编辑', 'shop-custom-features' ); ?></a>
-										|
-										<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scf_delete_chat_message&id=' . $message->id . '&session_id=' . rawurlencode( $session_filter ) ), 'scf_delete_message_' . $message->id ) ); ?>" onclick="return confirm('<?php echo esc_js( __( '确定删除此消息？', 'shop-custom-features' ) ); ?>');"><?php esc_html_e( '删除', 'shop-custom-features' ); ?></a>
-									</td>
-								</tr>
+								<div class="scf-admin-chat-bubble scf-admin-chat-bubble--<?php echo 'admin' === $message->sender_type ? 'admin' : 'visitor'; ?>" data-id="<?php echo esc_attr( $message->id ); ?>">
+									<?php echo esc_html( $message->message ); ?>
+									<div class="scf-admin-chat-bubble__meta">
+										<span>
+											<?php echo esc_html( $message->sender_name ); ?>
+											<?php if ( 'admin' === $message->sender_type ) : ?>
+												(<?php esc_html_e( '客服', 'shop-custom-features' ); ?>)
+											<?php endif; ?>
+											· <?php echo esc_html( mysql2date( 'Y-m-d H:i', $message->created_at ) ); ?>
+										</span>
+										<span class="scf-admin-chat-bubble__actions">
+											<a href="<?php echo esc_url( admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $session_filter ) . '&edit=' . $message->id ) ); ?>"><?php esc_html_e( '编辑', 'shop-custom-features' ); ?></a>
+											|
+											<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scf_delete_chat_message&id=' . $message->id . '&session_id=' . rawurlencode( $session_filter ) ), 'scf_delete_message_' . $message->id ) ); ?>" onclick="return confirm('<?php echo esc_js( __( '确定删除此消息？', 'shop-custom-features' ) ); ?>');"><?php esc_html_e( '删除', 'shop-custom-features' ); ?></a>
+										</span>
+									</div>
+								</div>
 							<?php endforeach; ?>
 						<?php endif; ?>
-					</tbody>
-				</table>
+					</div>
+
+					<div class="scf-admin-chat-reply">
+						<form id="scf-admin-reply-form">
+							<label for="scf-admin-reply-input"><strong><?php esc_html_e( '回复访客', 'shop-custom-features' ); ?></strong></label>
+							<textarea id="scf-admin-reply-input" rows="3" class="large-text" placeholder="<?php esc_attr_e( '输入回复内容...', 'shop-custom-features' ); ?>" required></textarea>
+							<button type="submit" class="button button-primary" id="scf-admin-reply-btn"><?php esc_html_e( '发送回复', 'shop-custom-features' ); ?></button>
+						</form>
+					</div>
+				</div>
 			<?php else : ?>
-				<p class="description"><?php esc_html_e( '点击会话查看详情，可在后台编辑或回复聊天内容。', 'shop-custom-features' ); ?></p>
+				<p class="description">
+					<?php esc_html_e( '点击会话查看详情，可在后台编辑或回复聊天内容。', 'shop-custom-features' ); ?>
+					<span class="scf-admin-chat-status">
+						<span class="scf-admin-chat-status__dot"></span>
+						<?php esc_html_e( '实时同步中', 'shop-custom-features' ); ?>
+					</span>
+				</p>
 				<table class="widefat striped">
 					<thead>
 						<tr>
@@ -398,15 +636,15 @@ class SCF_Chat {
 							<th><?php esc_html_e( '操作', 'shop-custom-features' ); ?></th>
 						</tr>
 					</thead>
-					<tbody>
+					<tbody id="scf-admin-sessions-tbody">
 						<?php if ( empty( $messages ) ) : ?>
 							<tr><td colspan="4"><?php esc_html_e( '暂无聊天记录', 'shop-custom-features' ); ?></td></tr>
 						<?php else : ?>
 							<?php foreach ( $messages as $message ) : ?>
-								<tr>
-									<td><?php echo esc_html( wp_trim_words( $message->message, 12, '...' ) ); ?></td>
+								<tr data-session="<?php echo esc_attr( $message->session_id ); ?>">
+									<td class="scf-session-preview"><?php echo esc_html( wp_trim_words( $message->message, 12, '...' ) ); ?></td>
 									<td><?php echo esc_html( $message->sender_name ); ?></td>
-									<td><?php echo esc_html( mysql2date( 'Y-m-d H:i', $message->created_at ) ); ?></td>
+									<td class="scf-session-time"><?php echo esc_html( mysql2date( 'Y-m-d H:i', $message->created_at ) ); ?></td>
 									<td>
 										<a href="<?php echo esc_url( admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $message->session_id ) ) ); ?>"><?php esc_html_e( '查看会话', 'shop-custom-features' ); ?></a>
 									</td>
@@ -452,6 +690,20 @@ class SCF_Chat {
 					<tr>
 						<th><?php esc_html_e( '发送者', 'shop-custom-features' ); ?></th>
 						<td><?php echo esc_html( $message->sender_name ); ?> (<?php echo esc_html( $message->sender_type ); ?>)</td>
+					</tr>
+					<tr>
+						<th><label for="scf_message_created_at"><?php esc_html_e( '消息时间', 'shop-custom-features' ); ?></label></th>
+						<td>
+							<input
+								type="datetime-local"
+								id="scf_message_created_at"
+								name="created_at"
+								value="<?php echo esc_attr( mysql2date( 'Y-m-d\TH:i', $message->created_at ) ); ?>"
+								class="regular-text"
+								required
+							>
+							<p class="description"><?php esc_html_e( '可修改消息显示的时间。', 'shop-custom-features' ); ?></p>
+						</td>
 					</tr>
 					<tr>
 						<th><label for="scf_message_content"><?php esc_html_e( '消息内容', 'shop-custom-features' ); ?></label></th>
@@ -521,19 +773,28 @@ class SCF_Chat {
 		$message_id = isset( $_POST['message_id'] ) ? absint( $_POST['message_id'] ) : 0;
 		$session_id = isset( $_POST['session_id'] ) ? sanitize_text_field( wp_unslash( $_POST['session_id'] ) ) : '';
 		$content    = isset( $_POST['message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['message'] ) ) : '';
+		$created_at = isset( $_POST['created_at'] ) ? $this->parse_datetime_input( sanitize_text_field( wp_unslash( $_POST['created_at'] ) ) ) : null;
 
 		check_admin_referer( 'scf_update_message_' . $message_id, 'scf_update_message_nonce' );
 
 		global $wpdb;
 
+		$update_data = array(
+			'message'    => $content,
+			'updated_at' => current_time( 'mysql' ),
+		);
+		$update_format = array( '%s', '%s' );
+
+		if ( $created_at ) {
+			$update_data['created_at'] = $created_at;
+			$update_format[]           = '%s';
+		}
+
 		$wpdb->update(
 			$this->get_table_name(),
-			array(
-				'message'    => $content,
-				'updated_at' => current_time( 'mysql' ),
-			),
+			$update_data,
 			array( 'id' => $message_id ),
-			array( '%s', '%s' ),
+			$update_format,
 			array( '%d' )
 		);
 
