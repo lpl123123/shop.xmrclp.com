@@ -1,84 +1,135 @@
 #scf-chat-root {
 	--scf-chat-primary: #83b735;
+	--scf-chat-primary-dark: #6fa02b;
 	--scf-chat-bg: #fff;
 	--scf-chat-text: #333;
 	--scf-chat-muted: #888;
-	--scf-chat-border: #e5e5e5;
-	--scf-chat-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-	font-family: inherit;
-}
-
-.scf-chat-toggle {
+	--scf-chat-border: #e8e8e8;
+	--scf-chat-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
 	position: fixed;
 	right: 24px;
 	bottom: 24px;
-	z-index: 99998;
-	width: 56px;
-	height: 56px;
+	left: auto !important;
+	top: auto !important;
+	z-index: 999999;
+	width: auto;
+	height: auto;
+	margin: 0;
+	padding: 0;
+	pointer-events: none;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+#scf-chat-root * {
+	box-sizing: border-box;
+}
+
+.scf-chat-toggle {
+	position: relative;
+	right: auto;
+	bottom: auto;
+	left: auto !important;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 60px;
+	height: 60px;
 	border: none;
 	border-radius: 50%;
-	background: var(--scf-chat-primary);
+	background: linear-gradient(135deg, var(--scf-chat-primary) 0%, var(--scf-chat-primary-dark) 100%);
 	color: #fff;
-	font-size: 24px;
 	cursor: pointer;
 	box-shadow: var(--scf-chat-shadow);
-	transition: transform 0.2s;
+	transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+	pointer-events: auto;
 }
 
 .scf-chat-toggle:hover {
-	transform: scale(1.05);
+	transform: scale(1.06);
+	box-shadow: 0 14px 44px rgba(0, 0, 0, 0.22);
+}
+
+.scf-chat-toggle.is-hidden {
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	transform: scale(0.8);
+}
+
+.scf-chat-toggle svg {
+	width: 28px;
+	height: 28px;
+	fill: currentColor;
 }
 
 .scf-chat-panel {
-	position: fixed;
-	right: 24px;
-	bottom: 92px;
-	z-index: 99999;
-	width: 360px;
-	max-width: calc(100vw - 32px);
-	height: 480px;
+	position: absolute;
+	right: 0;
+	bottom: 76px;
+	left: auto !important;
+	top: auto !important;
+	z-index: 3;
+	width: 380px;
+	max-width: calc(100vw - 48px);
+	height: 520px;
 	max-height: calc(100vh - 120px);
 	display: flex;
 	flex-direction: column;
 	background: var(--scf-chat-bg);
-	border-radius: 12px;
+	border-radius: 16px;
 	box-shadow: var(--scf-chat-shadow);
 	overflow: hidden;
 	opacity: 0;
 	visibility: hidden;
-	transform: translateY(16px);
-	transition: opacity 0.25s, transform 0.25s, visibility 0.25s;
+	transform: translateY(20px) scale(0.96);
+	transform-origin: bottom right;
+	transition: opacity 0.28s ease, transform 0.28s ease, visibility 0.28s;
+	pointer-events: auto;
 }
 
 .scf-chat-panel.is-open {
 	opacity: 1;
 	visibility: visible;
-	transform: translateY(0);
+	transform: translateY(0) scale(1);
 }
 
 .scf-chat-header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 14px 16px;
-	background: var(--scf-chat-primary);
+	padding: 16px 18px;
+	background: linear-gradient(135deg, var(--scf-chat-primary) 0%, var(--scf-chat-primary-dark) 100%);
 	color: #fff;
+	flex-shrink: 0;
 }
 
 .scf-chat-header h3 {
 	margin: 0;
 	font-size: 16px;
 	font-weight: 600;
+	letter-spacing: 0.02em;
 }
 
 .scf-chat-close {
-	background: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	background: rgba(255, 255, 255, 0.18);
 	border: none;
+	border-radius: 50%;
 	color: #fff;
-	font-size: 22px;
-	cursor: pointer;
+	font-size: 20px;
 	line-height: 1;
-	padding: 0 4px;
+	cursor: pointer;
+	padding: 0;
+	transition: background 0.2s;
+}
+
+.scf-chat-close:hover {
+	background: rgba(255, 255, 255, 0.3);
 }
 
 .scf-chat-messages {
@@ -87,16 +138,19 @@
 	padding: 16px;
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: 12px;
+	background: #f8f9fa;
+	scroll-behavior: smooth;
 }
 
 .scf-chat-message {
-	max-width: 85%;
+	max-width: 82%;
 	padding: 10px 14px;
-	border-radius: 12px;
+	border-radius: 14px;
 	font-size: 14px;
-	line-height: 1.5;
+	line-height: 1.55;
 	word-break: break-word;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 .scf-chat-message--visitor {
@@ -108,72 +162,101 @@
 
 .scf-chat-message--admin {
 	align-self: flex-start;
-	background: #f0f0f0;
+	background: #fff;
 	color: var(--scf-chat-text);
+	border: 1px solid var(--scf-chat-border);
 	border-bottom-left-radius: 4px;
 }
 
 .scf-chat-message__meta {
 	display: block;
-	margin-top: 4px;
+	margin-top: 5px;
 	font-size: 11px;
-	opacity: 0.7;
+	opacity: 0.72;
 }
 
 .scf-chat-welcome {
-	padding: 10px 14px;
-	background: #f7f7f7;
-	border-radius: 8px;
+	padding: 12px 16px;
+	background: #fff;
+	border: 1px dashed #ddd;
+	border-radius: 10px;
 	font-size: 13px;
 	color: var(--scf-chat-muted);
 	text-align: center;
+	line-height: 1.5;
 }
 
 .scf-chat-form {
-	padding: 12px 16px;
+	padding: 14px 16px 16px;
 	border-top: 1px solid var(--scf-chat-border);
+	background: #fff;
+	flex-shrink: 0;
 }
 
 .scf-chat-form__intro {
 	display: flex;
 	gap: 8px;
-	margin-bottom: 8px;
+	margin-bottom: 10px;
 }
 
 .scf-chat-form__intro input {
 	flex: 1;
-	padding: 8px 10px;
+	padding: 9px 12px;
 	border: 1px solid var(--scf-chat-border);
-	border-radius: 6px;
+	border-radius: 8px;
 	font-size: 13px;
+	outline: none;
+	transition: border-color 0.2s;
+}
+
+.scf-chat-form__intro input:focus {
+	border-color: var(--scf-chat-primary);
 }
 
 .scf-chat-form__row {
 	display: flex;
 	gap: 8px;
+	align-items: flex-end;
 }
 
 .scf-chat-form__row textarea {
 	flex: 1;
 	padding: 10px 12px;
 	border: 1px solid var(--scf-chat-border);
-	border-radius: 8px;
+	border-radius: 10px;
 	resize: none;
 	font-size: 14px;
 	font-family: inherit;
-	min-height: 40px;
-	max-height: 80px;
+	min-height: 42px;
+	max-height: 100px;
+	outline: none;
+	transition: border-color 0.2s;
+}
+
+.scf-chat-form__row textarea:focus {
+	border-color: var(--scf-chat-primary);
 }
 
 .scf-chat-form__row button {
-	padding: 0 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 64px;
+	height: 42px;
+	padding: 0 18px;
 	border: none;
-	border-radius: 8px;
+	border-radius: 10px;
 	background: var(--scf-chat-primary);
 	color: #fff;
 	font-size: 14px;
+	font-weight: 600;
 	cursor: pointer;
 	white-space: nowrap;
+	transition: background 0.2s;
+}
+
+.scf-chat-form__row button:hover {
+	background: var(--scf-chat-primary-dark);
 }
 
 .scf-chat-form__row button:disabled {
@@ -182,10 +265,14 @@
 }
 
 @media (max-width: 480px) {
-	.scf-chat-panel {
+	#scf-chat-root {
 		right: 16px;
-		bottom: 80px;
+		bottom: 16px;
+	}
+
+	.scf-chat-panel {
 		width: calc(100vw - 32px);
 		height: calc(100vh - 100px);
+		bottom: 72px;
 	}
 }
