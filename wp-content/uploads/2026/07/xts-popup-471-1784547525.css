@@ -1,0 +1,11 @@
+.wd-mfp-popup-wrap-471 {
+	--wd-popup-width: 742px;
+	--wd-align-items: center;
+	--wd-justify-content: center;
+}
+.wd-mfp-popup-wrap-471 .wd-popup {
+	--wd-align-items: start;
+}
+#popup-471.wd-popup .wd-popup-inner {
+	padding: 0px 0px 0px 0px;
+}
