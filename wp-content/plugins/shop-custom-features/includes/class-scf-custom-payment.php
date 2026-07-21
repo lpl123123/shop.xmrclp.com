@@ -368,6 +368,20 @@ class SCF_Custom_Payment {
 	}
 
 	/**
+	 * Format price as plain text for JavaScript display.
+	 *
+	 * @param float|string $price Product price.
+	 * @return string
+	 */
+	private function format_price_plain( $price ) {
+		return html_entity_decode(
+			wp_strip_all_tags( wc_price( $price ) ),
+			ENT_QUOTES,
+			'UTF-8'
+		);
+	}
+
+	/**
 	 * Format product data for frontend JSON.
 	 *
 	 * @param WC_Product $product Product object.
@@ -378,12 +392,12 @@ class SCF_Custom_Payment {
 		$image_url = $image_id ? wp_get_attachment_image_url( $image_id, 'woocommerce_thumbnail' ) : wc_placeholder_img_src( 'woocommerce_thumbnail' );
 
 		return array(
-			'id'        => $product->get_id(),
-			'name'      => $product->get_name(),
-			'price'     => wc_format_decimal( $product->get_price(), wc_get_price_decimals() ),
-			'price_html'=> wp_strip_all_tags( wc_price( $product->get_price() ) ),
-			'image'     => $image_url,
-			'permalink' => get_permalink( $product->get_id() ),
+			'id'            => $product->get_id(),
+			'name'          => $product->get_name(),
+			'price'         => wc_format_decimal( $product->get_price(), wc_get_price_decimals() ),
+			'price_display' => $this->format_price_plain( $product->get_price() ),
+			'image'         => $image_url,
+			'permalink'     => get_permalink( $product->get_id() ),
 		);
 	}
 
