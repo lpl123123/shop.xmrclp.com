@@ -1,0 +1,131 @@
+.scf-custom-payment {
+	max-width: 480px;
+	margin: 0 auto;
+	padding: 32px;
+	background: #fff;
+	border: 1px solid #e8e8e8;
+	border-radius: 12px;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+.scf-custom-payment__title {
+	margin: 0 0 8px;
+	font-size: 24px;
+	font-weight: 600;
+	text-align: center;
+}
+
+.scf-custom-payment__desc {
+	margin: 0 0 24px;
+	color: #666;
+	text-align: center;
+	font-size: 14px;
+	line-height: 1.6;
+}
+
+.scf-custom-payment__field {
+	margin-bottom: 20px;
+}
+
+.scf-custom-payment__field label {
+	display: block;
+	margin-bottom: 8px;
+	font-weight: 600;
+	font-size: 14px;
+}
+
+.scf-custom-payment__amount-wrap {
+	display: flex;
+	align-items: center;
+	border: 2px solid #e0e0e0;
+	border-radius: 8px;
+	overflow: hidden;
+	transition: border-color 0.2s;
+}
+
+.scf-custom-payment__amount-wrap:focus-within {
+	border-color: #83b735;
+}
+
+.scf-custom-payment__currency {
+	padding: 12px 16px;
+	background: #f5f5f5;
+	font-size: 18px;
+	font-weight: 600;
+	color: #333;
+}
+
+.scf-custom-payment__amount-wrap input[type="number"] {
+	flex: 1;
+	padding: 12px 16px;
+	border: none;
+	font-size: 24px;
+	font-weight: 600;
+	outline: none;
+	-moz-appearance: textfield;
+}
+
+.scf-custom-payment__amount-wrap input[type="number"]::-webkit-outer-spin-button,
+.scf-custom-payment__amount-wrap input[type="number"]::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
+.scf-custom-payment__field input[type="text"] {
+	width: 100%;
+	padding: 12px 16px;
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+	font-size: 14px;
+	box-sizing: border-box;
+}
+
+.scf-custom-payment__preview {
+	margin: 24px 0;
+	padding: 16px;
+	background: #f9f9f9;
+	border-radius: 8px;
+}
+
+.scf-custom-payment__preview h3 {
+	margin: 0 0 12px;
+	font-size: 14px;
+	color: #666;
+}
+
+.scf-custom-payment__product {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 12px 16px;
+	background: #fff;
+	border: 1px solid #eee;
+	border-radius: 6px;
+}
+
+.scf-custom-payment__product-name {
+	font-weight: 600;
+}
+
+.scf-custom-payment__product-price {
+	font-size: 20px;
+	font-weight: 700;
+	color: #83b735;
+}
+
+.scf-custom-payment__submit {
+	width: 100%;
+	padding: 14px 24px !important;
+	font-size: 16px !important;
+	font-weight: 600 !important;
+	border-radius: 8px !important;
+	background: #83b735 !important;
+	color: #fff !important;
+	border: none !important;
+	cursor: pointer;
+	transition: background 0.2s;
+}
+
+.scf-custom-payment__submit:hover {
+	background: #72a02e !important;
+}
