@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Shop Custom Features
  * Description: 聊天功能、商家收款码绑定、自定义金额在线支付
- * Version: 1.2.6
+ * Version: 1.2.8
  * Author: Shop
  * Text Domain: shop-custom-features
  * Requires Plugins: woocommerce
@@ -12,7 +12,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SCF_VERSION', '1.2.6' );
+define( 'SCF_VERSION', '1.2.8' );
 define( 'SCF_PLUGIN_FILE', __FILE__ );
 define( 'SCF_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SCF_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

@@ -12,7 +12,6 @@
 
 	var chatIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>';
 	var NEAR_BOTTOM_THRESHOLD = 80;
-	var KEYBOARD_HEIGHT_THRESHOLD = 120;
 
 	var state = {
 		open: false,
@@ -20,10 +19,14 @@
 		polling: null,
 		sending: false,
 		stickToBottom: true,
-		inputFocused: false,
 		name: '',
 		email: '',
+		bodyScrollY: 0,
+		portalActive: false,
 	};
+
+	var portal = null;
+	var panelHome = { panel: null, backdrop: null };
 
 	function escapeHtml(text) {
 		var div = document.createElement('div');
@@ -43,6 +46,14 @@
 
 	function getMessagesContainer() {
 		return document.getElementById('scf-chat-messages');
+	}
+
+	function getPanel() {
+		return root.querySelector('.scf-chat-panel');
+	}
+
+	function getBackdrop() {
+		return root.querySelector('.scf-chat-backdrop');
 	}
 
 	function isNearBottom(container) {
@@ -67,71 +78,152 @@
 		return window.matchMedia('(max-width: 480px)').matches;
 	}
 
-	function isKeyboardOpen() {
-		if (!window.visualViewport) {
-			return state.inputFocused;
+	function ensurePortal() {
+		if (portal) {
+			return portal;
 		}
 
-		return (window.innerHeight - window.visualViewport.height) > KEYBOARD_HEIGHT_THRESHOLD;
+		portal = document.createElement('div');
+		portal.id = 'scf-chat-portal';
+		portal.setAttribute('aria-hidden', 'true');
+		document.body.appendChild(portal);
+		return portal;
+	}
+
+	function rememberPanelHome() {
+		var panel = getPanel();
+		var backdrop = getBackdrop();
+
+		if (panel && !panelHome.panel) {
+			panelHome.panel = panel;
+		}
+
+		if (backdrop && !panelHome.backdrop) {
+			panelHome.backdrop = backdrop;
+		}
+	}
+
+	function activateMobilePortal(active) {
+		if (!isMobileLayout()) {
+			deactivateMobilePortal();
+			return;
+		}
+
+		rememberPanelHome();
+
+		var panel = getPanel();
+		var backdrop = getBackdrop();
+		var host = ensurePortal();
+
+		if (active) {
+			if (backdrop && backdrop.parentNode !== host) {
+				host.appendChild(backdrop);
+			}
+			if (panel && panel.parentNode !== host) {
+				host.appendChild(panel);
+			}
+			host.setAttribute('aria-hidden', 'false');
+			state.portalActive = true;
+			return;
+		}
+
+		deactivateMobilePortal();
+	}
+
+	function deactivateMobilePortal() {
+		if (!portal) {
+			return;
+		}
+
+		var panel = getPanel();
+		var backdrop = getBackdrop();
+
+		if (backdrop && backdrop.parentNode !== root) {
+			root.insertBefore(backdrop, root.firstChild);
+		}
+
+		if (panel && panel.parentNode !== root) {
+			var toggle = root.querySelector('.scf-chat-toggle');
+			if (toggle && toggle.nextSibling) {
+				root.insertBefore(panel, toggle.nextSibling);
+			} else {
+				root.appendChild(panel);
+			}
+		}
+
+		portal.setAttribute('aria-hidden', 'true');
+		state.portalActive = false;
 	}
 
 	function resetPanelViewportStyles() {
-		var panel = root.querySelector('.scf-chat-panel');
+		var panel = getPanel();
 		if (!panel) {
 			return;
 		}
 
 		panel.classList.remove('is-keyboard-open');
+		panel.style.position = '';
 		panel.style.top = '';
+		panel.style.left = '';
+		panel.style.width = '';
 		panel.style.height = '';
 		panel.style.maxHeight = '';
 		panel.style.bottom = '';
+		panel.style.right = '';
+		panel.style.transform = '';
 	}
 
-	function adjustPanelForViewport() {
-		var panel = root.querySelector('.scf-chat-panel');
-		if (!panel || !panel.classList.contains('is-open')) {
-			return;
-		}
-
-		if (!isMobileLayout()) {
-			resetPanelViewportStyles();
-			return;
-		}
-
-		if (!state.inputFocused && !isKeyboardOpen()) {
-			resetPanelViewportStyles();
+	function syncPanelToViewport() {
+		var panel = getPanel();
+		if (!panel || !panel.classList.contains('is-open') || !isMobileLayout()) {
 			return;
 		}
 
 		var viewport = window.visualViewport;
 		if (!viewport) {
+			panel.classList.add('is-keyboard-open');
 			return;
 		}
 
-		var gap = 8;
-		var availableHeight = Math.max(220, viewport.height - gap * 2);
-		var offsetTop = Math.max(viewport.offsetTop + gap, gap);
+		var keyboardOpen = viewport.height < (window.innerHeight - 80);
 
-		panel.classList.add('is-keyboard-open');
+		panel.classList.toggle('is-keyboard-open', keyboardOpen);
 		panel.style.position = 'fixed';
-		panel.style.top = offsetTop + 'px';
-		panel.style.height = availableHeight + 'px';
-		panel.style.maxHeight = availableHeight + 'px';
+		panel.style.top = viewport.offsetTop + 'px';
+		panel.style.left = viewport.offsetLeft + 'px';
+		panel.style.width = viewport.width + 'px';
+		panel.style.height = viewport.height + 'px';
+		panel.style.maxHeight = viewport.height + 'px';
 		panel.style.bottom = 'auto';
-		panel.style.left = '0';
-		panel.style.right = '0';
+		panel.style.right = 'auto';
+		panel.style.transform = 'none';
 
-		if (state.stickToBottom) {
-			window.requestAnimationFrame(function () {
-				scrollToBottom(getMessagesContainer(), true);
-			});
-		}
+		window.requestAnimationFrame(function () {
+			scrollToBottom(getMessagesContainer(), state.stickToBottom);
+		});
 	}
 
 	function lockBodyScroll(locked) {
-		document.documentElement.classList.toggle('scf-chat-body-lock', locked);
-		document.body.classList.toggle('scf-chat-body-lock', locked);
+		if (locked) {
+			state.bodyScrollY = window.scrollY || window.pageYOffset || 0;
+			document.documentElement.classList.add('scf-chat-body-lock');
+			document.body.classList.add('scf-chat-body-lock');
+			document.body.style.position = 'fixed';
+			document.body.style.top = '-' + state.bodyScrollY + 'px';
+			document.body.style.left = '0';
+			document.body.style.right = '0';
+			document.body.style.width = '100%';
+			return;
+		}
+
+		document.documentElement.classList.remove('scf-chat-body-lock');
+		document.body.classList.remove('scf-chat-body-lock');
+		document.body.style.position = '';
+		document.body.style.top = '';
+		document.body.style.left = '';
+		document.body.style.right = '';
+		document.body.style.width = '';
+		window.scrollTo(0, state.bodyScrollY);
 	}
 
 	function bindViewportListeners() {
@@ -139,7 +231,14 @@
 			return;
 		}
 
-		window.visualViewport.addEventListener('resize', adjustPanelForViewport);
+		var handler = function () {
+			if (state.open && isMobileLayout()) {
+				syncPanelToViewport();
+			}
+		};
+
+		window.visualViewport.addEventListener('resize', handler);
+		window.visualViewport.addEventListener('scroll', handler);
 	}
 
 	function bindMessagesScroll(container) {
@@ -152,30 +251,43 @@
 		}, { passive: true });
 	}
 
+	function focusWithoutPageScroll(el) {
+		if (!el) {
+			return;
+		}
+
+		try {
+			el.focus({ preventScroll: true });
+		} catch (err) {
+			el.focus();
+		}
+
+		window.scrollTo(0, state.bodyScrollY);
+	}
+
 	function bindInputFocusHandlers() {
 		var focusables = root.querySelectorAll('#scf-chat-input, #scf-chat-name, #scf-chat-email');
 		focusables.forEach(function (el) {
+			el.addEventListener('touchstart', function () {
+				state.stickToBottom = true;
+			}, { passive: true });
+
 			el.addEventListener('focus', function () {
-				state.inputFocused = true;
-				window.setTimeout(adjustPanelForViewport, 80);
-				window.setTimeout(adjustPanelForViewport, 320);
-			});
-			el.addEventListener('blur', function () {
-				state.inputFocused = false;
-				window.setTimeout(function () {
-					if (!isKeyboardOpen()) {
-						resetPanelViewportStyles();
-					}
-				}, 120);
+				state.stickToBottom = true;
+				window.scrollTo(0, state.bodyScrollY);
+				syncPanelToViewport();
+				window.setTimeout(syncPanelToViewport, 50);
+				window.setTimeout(syncPanelToViewport, 150);
+				window.setTimeout(syncPanelToViewport, 350);
 			});
 		});
 	}
 
 	function setPanelOpen(isOpen) {
 		state.open = isOpen;
-		var panel = root.querySelector('.scf-chat-panel');
+		var panel = getPanel();
 		var toggle = root.querySelector('.scf-chat-toggle');
-		var backdrop = root.querySelector('.scf-chat-backdrop');
+		var backdrop = getBackdrop();
 
 		root.classList.toggle('is-active', isOpen);
 
@@ -196,14 +308,18 @@
 		if (isOpen) {
 			state.stickToBottom = true;
 			lockBodyScroll(isMobileLayout());
+			activateMobilePortal(true);
+			syncPanelToViewport();
+			window.setTimeout(syncPanelToViewport, 320);
 			fetchMessages(true);
 			startPolling();
-		} else {
-			state.inputFocused = false;
-			stopPolling();
-			resetPanelViewportStyles();
-			lockBodyScroll(false);
+			return;
 		}
+
+		stopPolling();
+		resetPanelViewportStyles();
+		deactivateMobilePortal();
+		lockBodyScroll(false);
 	}
 
 	function buildUI() {
@@ -220,19 +336,21 @@
 				'</div>' +
 				'<form class="scf-chat-form" id="scf-chat-form">' +
 					'<div class="scf-chat-form__intro">' +
-						'<input type="text" id="scf-chat-name" placeholder="您的姓名" maxlength="50">' +
-						'<input type="email" id="scf-chat-email" placeholder="邮箱（可选）" maxlength="100">' +
+						'<input type="text" id="scf-chat-name" placeholder="您的姓名" maxlength="50" enterkeyhint="next">' +
+						'<input type="email" id="scf-chat-email" placeholder="邮箱（可选）" maxlength="100" enterkeyhint="next">' +
 					'</div>' +
 					'<div class="scf-chat-form__row">' +
-						'<textarea id="scf-chat-input" placeholder="' + escapeHtml(scfChat.placeholder) + '" rows="1" maxlength="2000"></textarea>' +
+						'<textarea id="scf-chat-input" placeholder="' + escapeHtml(scfChat.placeholder) + '" rows="1" maxlength="2000" enterkeyhint="send"></textarea>' +
 						'<button type="submit">发送</button>' +
 					'</div>' +
 				'</form>' +
 			'</div>';
 
+		rememberPanelHome();
+
 		var toggle = root.querySelector('.scf-chat-toggle');
 		var closeBtn = root.querySelector('.scf-chat-close');
-		var backdrop = root.querySelector('.scf-chat-backdrop');
+		var backdrop = getBackdrop();
 		var form = root.querySelector('#scf-chat-form');
 		var messagesContainer = getMessagesContainer();
 
@@ -360,7 +478,8 @@
 				if (data.success && data.data.message) {
 					input.value = '';
 					appendMessages([data.data.message], true);
-					adjustPanelForViewport();
+					syncPanelToViewport();
+					focusWithoutPageScroll(input);
 				}
 			})
 			.catch(function () {

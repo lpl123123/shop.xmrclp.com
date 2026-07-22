@@ -44,6 +44,7 @@ class SCF_Chat {
 
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'wp_footer', array( $this, 'render_chat_widget' ) );
+		add_filter( 'wp_viewport_meta_tag', array( $this, 'filter_viewport_meta' ) );
 
 		add_action( 'wp_ajax_scf_send_chat_message', array( $this, 'ajax_send_message' ) );
 		add_action( 'wp_ajax_nopriv_scf_send_chat_message', array( $this, 'ajax_send_message' ) );
@@ -107,6 +108,24 @@ class SCF_Chat {
 		register_setting( 'scf_chat_settings', 'scf_chat_title', array( 'type' => 'string', 'default' => __( '在线客服', 'shop-custom-features' ) ) );
 		register_setting( 'scf_chat_settings', 'scf_chat_welcome', array( 'type' => 'string', 'default' => __( '您好！有什么可以帮您的吗？', 'shop-custom-features' ) ) );
 		register_setting( 'scf_chat_settings', 'scf_chat_placeholder', array( 'type' => 'string', 'default' => __( '请输入消息...', 'shop-custom-features' ) ) );
+	}
+
+	/**
+	 * Improve mobile keyboard behavior by resizing the layout viewport.
+	 *
+	 * @param string $viewport Meta tag content attribute.
+	 * @return string
+	 */
+	public function filter_viewport_meta( $viewport ) {
+		if ( ! $this->is_chat_enabled() || is_admin() ) {
+			return $viewport;
+		}
+
+		if ( false !== strpos( $viewport, 'interactive-widget' ) ) {
+			return $viewport;
+		}
+
+		return $viewport . ', interactive-widget=resizes-content';
 	}
 
 	/**
