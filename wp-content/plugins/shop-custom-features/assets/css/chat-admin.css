@@ -95,6 +95,14 @@
 	animation: scf-highlight 2s ease;
 }
 
+.scf-session-actions a + a {
+	margin-left: 0;
+}
+
+.scf-session-actions {
+	white-space: nowrap;
+}
+
 @keyframes scf-highlight {
 	from { background-color: #fff8e5; }
 	to { background-color: transparent; }
