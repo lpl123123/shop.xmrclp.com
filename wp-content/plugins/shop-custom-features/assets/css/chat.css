@@ -117,6 +117,19 @@
 
 .scf-chat-body-lock {
 	overflow: hidden !important;
+	height: 100% !important;
+}
+
+#scf-chat-portal {
+	position: fixed;
+	inset: 0;
+	z-index: 1000000;
+	pointer-events: none;
+}
+
+#scf-chat-portal .scf-chat-backdrop,
+#scf-chat-portal .scf-chat-panel {
+	pointer-events: auto;
 }
 
 .scf-chat-header {
@@ -320,7 +333,7 @@
 		border-radius: 16px 16px 0 0;
 		transform: translateY(100%);
 		transform-origin: bottom center;
-		z-index: 999999;
+		z-index: 1000001;
 		transition: transform 0.28s ease, opacity 0.28s ease, visibility 0.28s;
 	}
 
@@ -330,13 +343,25 @@
 		transform: translateY(0);
 	}
 
+	#scf-chat-portal .scf-chat-panel.is-open,
 	.scf-chat-panel.is-keyboard-open {
-		border-radius: 12px 12px 0 0;
-		max-height: none;
+		border-radius: 0;
+		max-height: none !important;
+		transform: none !important;
+		transition: none;
 	}
 
 	.scf-chat-panel.is-keyboard-open .scf-chat-form__intro {
 		display: none;
+	}
+
+	#scf-chat-portal .scf-chat-backdrop.is-visible {
+		z-index: 1000000;
+	}
+
+	#scf-chat-portal:has(.scf-chat-panel.is-keyboard-open) .scf-chat-backdrop {
+		opacity: 0;
+		pointer-events: none;
 	}
 
 	.scf-chat-form__row textarea {
