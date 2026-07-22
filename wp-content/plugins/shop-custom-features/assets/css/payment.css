@@ -1,4 +1,4 @@
-/* Buy button on product pages */
+/* Loop buy button */
 .scf-buy-button-wrap {
 	margin-top: 12px;
 }
@@ -8,24 +8,26 @@ a.scf-buy-button {
 	display: inline-flex !important;
 	align-items: center;
 	justify-content: center;
-	min-width: 88px;
-	padding: 10px 20px !important;
+	gap: 8px;
+	min-height: 44px;
+	padding: 0 20px !important;
 	border-radius: 999px !important;
-	background: #ff4d4f !important;
+	background: linear-gradient(135deg, #ff6b4a 0%, #ff4d4f 100%) !important;
 	color: #fff !important;
 	border: none !important;
-	font-weight: 600 !important;
+	font-size: 14px;
+	font-weight: 700 !important;
 	text-decoration: none !important;
-	box-shadow: 0 4px 14px rgba(255, 77, 79, 0.35);
+	box-shadow: 0 6px 18px rgba(255, 77, 79, 0.28);
 	transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .scf-buy-button:hover,
 a.scf-buy-button:hover {
-	background: #e64547 !important;
+	background: linear-gradient(135deg, #ff5a38 0%, #e64547 100%) !important;
 	color: #fff !important;
-	transform: translateY(-1px);
-	box-shadow: 0 6px 18px rgba(255, 77, 79, 0.4);
+	transform: translateY(-2px);
+	box-shadow: 0 10px 24px rgba(255, 77, 79, 0.36);
 }
 
 .products .product .scf-buy-button {

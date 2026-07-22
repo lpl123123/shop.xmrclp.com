@@ -56,7 +56,6 @@ class SCF_Custom_Payment {
 		add_action( 'wp_ajax_nopriv_scf_match_product_by_amount', array( $this, 'ajax_match_product' ) );
 
 		add_action( 'woocommerce_after_shop_loop_item', array( $this, 'render_buy_button_loop' ), 15 );
-		add_action( 'woocommerce_single_product_summary', array( $this, 'render_buy_button_single' ), 31 );
 
 		add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_cart_item_data' ), 10, 2 );
 		add_filter( 'woocommerce_get_cart_item_from_session', array( $this, 'get_cart_item_from_session' ), 10, 2 );
@@ -212,26 +211,27 @@ class SCF_Custom_Payment {
 	}
 
 	/**
-	 * Render buy button on single product page.
+	 * Render buy button HTML for a product.
+	 *
+	 * @param WC_Product $product Product object.
+	 * @return string
 	 */
-	public function render_buy_button_single() {
-		if ( ! $this->should_show_buy_button() ) {
-			return;
+	public function render_buy_button_for_product( $product ) {
+		if ( ! $this->should_show_buy_button() || ! $product || ! $product->is_purchasable() ) {
+			return '';
 		}
 
-		global $product;
+		$url = esc_url( $this->get_buy_button_url( $product ) );
 
-		if ( ! $product || ! $product->is_purchasable() ) {
-			return;
-		}
-
-		echo '<div class="scf-buy-button-wrap">';
-		$this->output_buy_button( $product );
-		echo '</div>';
+		return sprintf(
+			'<a href="%1$s" class="scf-product-action scf-product-action--buy"><span class="scf-product-action__icon" aria-hidden="true">¥</span><span class="scf-product-action__text">%2$s</span></a>',
+			$url,
+			esc_html__( '买单', 'shop-custom-features' )
+		);
 	}
 
 	/**
-	 * Check if buy button should display.
+	 * Output buy button markup for product loops.
 	 *
 	 * @return bool
 	 */
@@ -298,7 +298,7 @@ class SCF_Custom_Payment {
 			);
 		}
 
-		if ( $this->should_show_buy_button() ) {
+		if ( $this->should_show_buy_button() && ( is_product() || is_shop() || is_product_taxonomy() ) ) {
 			wp_enqueue_style(
 				'scf-buy-button',
 				SCF_PLUGIN_URL . 'assets/css/payment.css',
