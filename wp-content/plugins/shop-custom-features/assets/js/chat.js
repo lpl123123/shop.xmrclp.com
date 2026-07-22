@@ -11,12 +11,14 @@
 	}
 
 	var chatIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>';
+	var NEAR_BOTTOM_THRESHOLD = 80;
 
 	var state = {
 		open: false,
 		lastId: 0,
 		polling: null,
 		sending: false,
+		stickToBottom: true,
 		name: '',
 		email: '',
 	};
@@ -37,8 +39,115 @@
 		);
 	}
 
-	function scrollToBottom(container) {
-		container.scrollTop = container.scrollHeight;
+	function getMessagesContainer() {
+		return document.getElementById('scf-chat-messages');
+	}
+
+	function isNearBottom(container) {
+		if (!container) {
+			return true;
+		}
+
+		return (container.scrollHeight - container.scrollTop - container.clientHeight) <= NEAR_BOTTOM_THRESHOLD;
+	}
+
+	function scrollToBottom(container, force) {
+		if (!container) {
+			return;
+		}
+
+		if (force || state.stickToBottom) {
+			container.scrollTop = container.scrollHeight;
+		}
+	}
+
+	function isMobileLayout() {
+		return window.matchMedia('(max-width: 480px)').matches;
+	}
+
+	function adjustPanelForViewport() {
+		var panel = root.querySelector('.scf-chat-panel');
+		if (!panel || !panel.classList.contains('is-open')) {
+			return;
+		}
+
+		if (!isMobileLayout()) {
+			panel.classList.remove('is-keyboard-open');
+			panel.style.top = '';
+			panel.style.height = '';
+			panel.style.maxHeight = '';
+			panel.style.bottom = '';
+			return;
+		}
+
+		var viewport = window.visualViewport;
+		if (!viewport) {
+			return;
+		}
+
+		var gap = 8;
+		var availableHeight = viewport.height - gap * 2;
+		var offsetTop = Math.max(viewport.offsetTop + gap, 0);
+		var keyboardOpen = (window.innerHeight - viewport.height) > 120;
+
+		panel.classList.toggle('is-keyboard-open', keyboardOpen);
+		panel.style.top = offsetTop + 'px';
+		panel.style.height = availableHeight + 'px';
+		panel.style.maxHeight = availableHeight + 'px';
+		panel.style.bottom = 'auto';
+
+		if (keyboardOpen && state.stickToBottom) {
+			var container = getMessagesContainer();
+			window.requestAnimationFrame(function () {
+				scrollToBottom(container, true);
+			});
+		}
+	}
+
+	function resetPanelViewportStyles() {
+		var panel = root.querySelector('.scf-chat-panel');
+		if (!panel) {
+			return;
+		}
+
+		panel.classList.remove('is-keyboard-open');
+		panel.style.top = '';
+		panel.style.height = '';
+		panel.style.maxHeight = '';
+		panel.style.bottom = '';
+	}
+
+	function bindViewportListeners() {
+		if (!window.visualViewport) {
+			return;
+		}
+
+		window.visualViewport.addEventListener('resize', adjustPanelForViewport);
+		window.visualViewport.addEventListener('scroll', adjustPanelForViewport);
+		window.addEventListener('orientationchange', adjustPanelForViewport);
+	}
+
+	function bindMessagesScroll(container) {
+		if (!container) {
+			return;
+		}
+
+		container.addEventListener('scroll', function () {
+			state.stickToBottom = isNearBottom(container);
+		}, { passive: true });
+	}
+
+	function bindInputFocusHandlers() {
+		var focusables = root.querySelectorAll('#scf-chat-input, #scf-chat-name, #scf-chat-email');
+		focusables.forEach(function (el) {
+			el.addEventListener('focus', function () {
+				window.setTimeout(adjustPanelForViewport, 100);
+				window.setTimeout(adjustPanelForViewport, 350);
+			});
+			el.addEventListener('blur', function () {
+				window.setTimeout(adjustPanelForViewport, 100);
+			});
+		});
 	}
 
 	function setPanelOpen(isOpen) {
@@ -56,10 +165,13 @@
 		}
 
 		if (isOpen) {
-			fetchMessages();
+			state.stickToBottom = true;
+			fetchMessages(true);
 			startPolling();
+			window.setTimeout(adjustPanelForViewport, 50);
 		} else {
 			stopPolling();
+			resetPanelViewportStyles();
 		}
 	}
 
@@ -89,6 +201,11 @@
 		var toggle = root.querySelector('.scf-chat-toggle');
 		var closeBtn = root.querySelector('.scf-chat-close');
 		var form = root.querySelector('#scf-chat-form');
+		var messagesContainer = getMessagesContainer();
+
+		bindMessagesScroll(messagesContainer);
+		bindInputFocusHandlers();
+		bindViewportListeners();
 
 		toggle.addEventListener('click', function () {
 			setPanelOpen(true);
@@ -104,7 +221,7 @@
 		});
 	}
 
-	function fetchMessages() {
+	function fetchMessages(forceScroll) {
 		var body = new FormData();
 		body.append('action', 'scf_fetch_chat_messages');
 		body.append('nonce', scfChat.nonce);
@@ -121,16 +238,19 @@
 				if (!data.success || !data.data.messages) {
 					return;
 				}
-				appendMessages(data.data.messages);
+				appendMessages(data.data.messages, forceScroll);
 			})
 			.catch(function () {});
 	}
 
-	function appendMessages(messages) {
-		var container = document.getElementById('scf-chat-messages');
+	function appendMessages(messages, forceScroll) {
+		var container = getMessagesContainer();
 		if (!container) {
 			return;
 		}
+
+		var wasNearBottom = isNearBottom(container);
+		var added = false;
 
 		messages.forEach(function (msg) {
 			if (msg.id <= state.lastId) {
@@ -141,9 +261,12 @@
 			}
 			container.insertAdjacentHTML('beforeend', renderMessage(msg));
 			state.lastId = msg.id;
+			added = true;
 		});
 
-		scrollToBottom(container);
+		if (added && (forceScroll || (state.stickToBottom && wasNearBottom))) {
+			scrollToBottom(container, true);
+		}
 	}
 
 	function sendMessage() {
@@ -167,6 +290,7 @@
 		state.name = nameInput ? nameInput.value.trim() : '';
 		state.email = emailInput ? emailInput.value.trim() : '';
 		state.sending = true;
+		state.stickToBottom = true;
 
 		var body = new FormData();
 		body.append('action', 'scf_send_chat_message');
@@ -186,7 +310,8 @@
 				state.sending = false;
 				if (data.success && data.data.message) {
 					input.value = '';
-					appendMessages([data.data.message]);
+					appendMessages([data.data.message], true);
+					adjustPanelForViewport();
 				}
 			})
 			.catch(function () {
@@ -196,7 +321,9 @@
 
 	function startPolling() {
 		stopPolling();
-		state.polling = setInterval(fetchMessages, 3000);
+		state.polling = setInterval(function () {
+			fetchMessages(false);
+		}, 3000);
 	}
 
 	function stopPolling() {
