@@ -1,39 +1,239 @@
-/* Merchant QR code on product page */
-.scf-merchant-qrcode {
-	margin: 24px 0;
-	padding: 20px;
-	border: 1px solid #e0e0e0;
-	border-radius: 8px;
-	background: #fafafa;
+/* Product page action buttons row */
+.scf-product-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin: 16px 0 8px;
+	align-items: stretch;
+}
+
+.scf-product-action {
+	flex: 1 1 calc(50% - 6px);
+	min-width: 140px;
+}
+
+.scf-product-action--buy,
+.scf-product-action--qrcode {
+	position: relative;
+}
+
+.scf-product-action--buy {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 48px;
+	padding: 0 20px;
+	border-radius: 999px;
+	background: linear-gradient(135deg, #ff6b4a 0%, #ff4d4f 100%);
+	color: #fff !important;
+	font-size: 15px;
+	font-weight: 700;
+	text-decoration: none !important;
+	box-shadow: 0 6px 18px rgba(255, 77, 79, 0.28);
+	transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.scf-product-action--buy:hover {
+	color: #fff !important;
+	transform: translateY(-2px);
+	box-shadow: 0 10px 24px rgba(255, 77, 79, 0.36);
+}
+
+.scf-product-action__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.22);
+	font-size: 14px;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.scf-product-action__icon--qr {
+	width: 22px;
+	height: 22px;
+	background:
+		linear-gradient(#fff, #fff) center/8px 8px no-repeat,
+		linear-gradient(#fff, #fff) 3px 3px/5px 5px no-repeat,
+		linear-gradient(#fff, #fff) 14px 3px/5px 5px no-repeat,
+		linear-gradient(#fff, #fff) 3px 14px/5px 5px no-repeat,
+		rgba(255, 255, 255, 0.22);
+}
+
+.scf-product-action__text {
+	line-height: 1.2;
+}
+
+.scf-qrcode-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	width: 100%;
+	min-height: 48px;
+	padding: 0 20px;
+	border: 2px solid #83b735;
+	border-radius: 999px;
+	background: #fff;
+	color: #5a8f24;
+	font-size: 15px;
+	font-weight: 700;
+	cursor: pointer;
+	box-shadow: 0 4px 14px rgba(131, 183, 53, 0.16);
+	transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.scf-qrcode-button:hover,
+.scf-qrcode-trigger.is-open .scf-qrcode-button,
+.scf-qrcode-trigger:focus-within .scf-qrcode-button {
+	background: #83b735;
+	color: #fff;
+	transform: translateY(-2px);
+	box-shadow: 0 8px 20px rgba(131, 183, 53, 0.24);
+}
+
+.scf-qrcode-popup {
+	position: absolute;
+	left: 50%;
+	bottom: calc(100% + 12px);
+	z-index: 100;
+	width: 280px;
+	max-width: calc(100vw - 32px);
+	padding: 16px;
+	border-radius: 14px;
+	background: #fff;
+	border: 1px solid #e8e8e8;
+	box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16);
+	opacity: 0;
+	visibility: hidden;
+	transform: translateX(-50%) translateY(8px);
+	transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s;
+	pointer-events: none;
 	text-align: center;
-	max-width: 320px;
 }
 
-.scf-merchant-qrcode__title {
-	margin: 0 0 8px;
+.scf-qrcode-trigger:hover .scf-qrcode-popup,
+.scf-qrcode-trigger.is-open .scf-qrcode-popup,
+.scf-qrcode-trigger:focus-within .scf-qrcode-popup {
+	opacity: 1;
+	visibility: visible;
+	transform: translateX(-50%) translateY(0);
+	pointer-events: auto;
+}
+
+.scf-qrcode-popup::after {
+	content: '';
+	position: absolute;
+	left: 50%;
+	bottom: -8px;
+	width: 14px;
+	height: 14px;
+	background: #fff;
+	border-right: 1px solid #e8e8e8;
+	border-bottom: 1px solid #e8e8e8;
+	transform: translateX(-50%) rotate(45deg);
+}
+
+.scf-qrcode-popup__header {
+	margin-bottom: 12px;
+}
+
+.scf-qrcode-popup__header strong {
+	display: block;
 	font-size: 16px;
-	font-weight: 600;
+	color: #222;
+	margin-bottom: 4px;
 }
 
-.scf-merchant-qrcode__name {
-	margin: 0 0 12px;
-	color: #333;
+.scf-qrcode-popup__header span {
+	font-size: 12px;
+	color: #888;
 }
 
-.scf-merchant-qrcode__image img {
-	max-width: 220px;
+.scf-qrcode-popup__image img {
+	display: block;
+	width: 200px;
+	max-width: 100%;
 	height: auto;
-	border-radius: 4px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	margin: 0 auto;
+	border-radius: 8px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
-.scf-merchant-qrcode__contact,
-.scf-merchant-qrcode__note {
-	margin: 8px 0 0;
+.scf-qrcode-popup__contact,
+.scf-qrcode-popup__note {
+	margin: 10px 0 0;
 	font-size: 13px;
 	color: #666;
+	line-height: 1.5;
 }
 
-.scf-merchant-qrcode__note {
+.scf-qrcode-popup__note {
 	font-style: italic;
+}
+
+.scf-qrcode-save {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	margin-top: 14px;
+	padding: 10px 16px;
+	border: none;
+	border-radius: 999px;
+	background: #2271b1;
+	color: #fff;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.2s ease;
+}
+
+.scf-qrcode-save:hover {
+	background: #135e96;
+}
+
+.scf-qrcode-save:disabled {
+	opacity: 0.7;
+	cursor: wait;
+}
+
+/* Loop buy button fallback */
+.products .product .scf-buy-button,
+.products .product .scf-product-action--buy {
+	margin-top: 8px;
+	width: 100%;
+}
+
+@media (max-width: 480px) {
+	.scf-product-actions {
+		flex-direction: column;
+	}
+
+	.scf-product-action {
+		flex-basis: 100%;
+		min-width: 0;
+	}
+
+	.scf-qrcode-popup {
+		left: 0;
+		right: 0;
+		width: auto;
+		transform: translateY(8px);
+	}
+
+	.scf-qrcode-trigger:hover .scf-qrcode-popup,
+	.scf-qrcode-trigger.is-open .scf-qrcode-popup,
+	.scf-qrcode-trigger:focus-within .scf-qrcode-popup {
+		transform: translateY(0);
+	}
+
+	.scf-qrcode-popup::after {
+		left: auto;
+		right: 28px;
+	}
 }

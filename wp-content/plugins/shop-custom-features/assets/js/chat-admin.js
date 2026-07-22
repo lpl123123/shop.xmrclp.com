@@ -15,6 +15,10 @@
 		return $('<div>').text(text).html();
 	}
 
+	function canEditMessages() {
+		return scfChatAdmin.sessionMode === 'edit';
+	}
+
 	function scrollThreadToBottom() {
 		var $thread = $('#scf-admin-chat-thread');
 		if ($thread.length) {
@@ -28,23 +32,32 @@
 			? escapeHtml(msg.sender_name) + ' (' + escapeHtml(scfChatAdmin.labels.admin) + ')'
 			: escapeHtml(msg.sender_name);
 
-		var editUrl = scfChatAdmin.editUrlBase
-			.replace('__ID__', msg.id)
-			.replace('__SESSION__', encodeURIComponent(scfChatAdmin.sessionId));
-		var deleteUrl = scfChatAdmin.deleteUrlBase
-			.replace('__ID__', msg.id)
-			.replace('__SESSION__', encodeURIComponent(scfChatAdmin.sessionId))
-			.replace('__NONCE__', scfChatAdmin.deleteNonces[msg.id] || '');
+		var actionsHtml = '';
+
+		if (canEditMessages()) {
+			var editUrl = scfChatAdmin.editUrlBase
+				.replace('__SESSION__', encodeURIComponent(scfChatAdmin.sessionId))
+				.replace('__ID__', msg.id);
+			var deleteUrl = scfChatAdmin.deleteUrlBase
+				.replace('__ID__', msg.id)
+				.replace('__SESSION__', encodeURIComponent(scfChatAdmin.sessionId))
+				.replace('__NONCE__', scfChatAdmin.deleteNonces[msg.id] || '');
+
+			actionsHtml =
+				'<span class="scf-admin-chat-bubble__actions">' +
+					'<a href="' + editUrl + '">' + escapeHtml(scfChatAdmin.labels.edit) + '</a>' +
+					(deleteUrl.indexOf('__NONCE__') === -1
+						? ' | <a href="' + deleteUrl + '" onclick="return confirm(\'' + escapeHtml(scfChatAdmin.labels.confirmDelete) + '\');">' + escapeHtml(scfChatAdmin.labels.delete) + '</a>'
+						: '') +
+				'</span>';
+		}
 
 		return (
 			'<div class="scf-admin-chat-bubble scf-admin-chat-bubble--' + typeClass + '" data-id="' + msg.id + '">' +
 				escapeHtml(msg.message) +
 				'<div class="scf-admin-chat-bubble__meta">' +
 					'<span>' + senderLabel + ' · ' + escapeHtml(msg.created_at) + '</span>' +
-					'<span class="scf-admin-chat-bubble__actions">' +
-						'<a href="' + editUrl + '">' + escapeHtml(scfChatAdmin.labels.edit) + '</a>' +
-						(deleteUrl ? ' | <a href="' + deleteUrl + '" onclick="return confirm(\'' + escapeHtml(scfChatAdmin.labels.confirmDelete) + '\');">' + escapeHtml(scfChatAdmin.labels.delete) + '</a>' : '') +
-					'</span>' +
+					actionsHtml +
 				'</div>' +
 			'</div>'
 		);
@@ -111,7 +124,7 @@
 		}).done(function (response) {
 			if (response.success && response.data.message) {
 				$textarea.val('');
-				if (response.data.delete_nonce) {
+				if (response.data.delete_nonce && canEditMessages()) {
 					scfChatAdmin.deleteNonces[response.data.message.id] = response.data.delete_nonce;
 				}
 				appendMessages([response.data.message]);
@@ -144,12 +157,16 @@
 				} else {
 					$tbody.find('td[colspan]').closest('tr').remove();
 					var viewUrl = scfChatAdmin.sessionUrlBase.replace('__SESSION__', encodeURIComponent(session.session_id));
+					var editSessionUrl = scfChatAdmin.sessionEditUrlBase.replace('__SESSION__', encodeURIComponent(session.session_id));
 					$tbody.prepend(
 						'<tr class="scf-new-session" data-session="' + escapeHtml(session.session_id) + '">' +
 							'<td class="scf-session-preview">' + escapeHtml(session.preview) + '</td>' +
 							'<td>' + escapeHtml(session.sender_name) + '</td>' +
 							'<td class="scf-session-time">' + escapeHtml(session.created_at) + '</td>' +
-							'<td><a href="' + viewUrl + '">' + escapeHtml(scfChatAdmin.labels.view) + '</a></td>' +
+							'<td class="scf-session-actions">' +
+								'<a href="' + viewUrl + '">' + escapeHtml(scfChatAdmin.labels.view) + '</a> | ' +
+								'<a href="' + editSessionUrl + '">' + escapeHtml(scfChatAdmin.labels.editSession) + '</a>' +
+							'</td>' +
 						'</tr>'
 					);
 				}

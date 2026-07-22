@@ -63,8 +63,17 @@
 		}
 	}
 
+	function formatPriceDisplay(product) {
+		if (product.price_display) {
+			return product.price_display;
+		}
+
+		return scfPayment.currency + parseFloat(product.price).toFixed(2);
+	}
+
 	function showMatch(product) {
 		currentProduct = product;
+		var priceText = formatPriceDisplay(product);
 
 		if (productIdInput) {
 			productIdInput.value = product.id;
@@ -77,17 +86,17 @@
 			matchedName.textContent = product.name;
 		}
 		if (matchedPrice) {
-			matchedPrice.textContent = product.price_html;
+			matchedPrice.textContent = priceText;
 		}
 		if (matchedTotal) {
-			matchedTotal.textContent = product.price_html;
+			matchedTotal.textContent = priceText;
 		}
 		if (matchedBox) {
 			matchedBox.hidden = false;
 		}
 		if (submitBtn) {
 			submitBtn.disabled = false;
-			submitBtn.textContent = scfPayment.labels.payAmount + ' (' + product.price_html + ')';
+			submitBtn.textContent = scfPayment.labels.payAmount + ' (' + priceText + ')';
 		}
 
 		setStatus(scfPayment.labels.matched, 'success');

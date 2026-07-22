@@ -172,6 +172,7 @@ class SCF_Chat {
 		);
 
 		$session_filter = isset( $_GET['session_id'] ) ? sanitize_text_field( wp_unslash( $_GET['session_id'] ) ) : '';
+		$session_mode   = ( isset( $_GET['mode'] ) && 'edit' === sanitize_text_field( wp_unslash( $_GET['mode'] ) ) ) ? 'edit' : 'view';
 		$last_id        = 0;
 		$delete_nonces  = array();
 
@@ -185,35 +186,54 @@ class SCF_Chat {
 				)
 			);
 
-			$session_messages = $wpdb->get_results(
-				$wpdb->prepare(
-					"SELECT id FROM {$table} WHERE session_id = %s",
-					$session_filter
-				)
-			);
+			if ( 'edit' === $session_mode ) {
+				$session_messages = $wpdb->get_results(
+					$wpdb->prepare(
+						"SELECT id FROM {$table} WHERE session_id = %s",
+						$session_filter
+					)
+				);
 
-			foreach ( $session_messages ? $session_messages : array() as $message ) {
-				$delete_nonces[ $message->id ] = wp_create_nonce( 'scf_delete_message_' . $message->id );
+				foreach ( $session_messages ? $session_messages : array() as $message ) {
+					$delete_nonces[ $message->id ] = wp_create_nonce( 'scf_delete_message_' . $message->id );
+				}
 			}
 		}
+
+		$session_query_args = array(
+			'page'       => 'scf-chat',
+			'session_id' => '__SESSION__',
+		);
 
 		wp_localize_script(
 			'scf-chat-admin',
 			'scfChatAdmin',
 			array(
-				'ajaxUrl'         => admin_url( 'admin-ajax.php' ),
-				'nonce'           => wp_create_nonce( 'scf_chat_admin_nonce' ),
-				'sessionId'       => $session_filter,
-				'lastId'          => $last_id,
-				'sessionUrlBase'  => admin_url( 'admin.php?page=scf-chat&session_id=__SESSION__' ),
-				'editUrlBase'     => admin_url( 'admin.php?page=scf-chat&session_id=__SESSION__&edit=__ID__' ),
-				'deleteUrlBase'   => admin_url( 'admin-post.php?action=scf_delete_chat_message&id=__ID__&session_id=__SESSION__&_wpnonce=__NONCE__' ),
-				'deleteNonces'    => $delete_nonces,
-				'labels'          => array(
+				'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
+				'nonce'              => wp_create_nonce( 'scf_chat_admin_nonce' ),
+				'sessionId'          => $session_filter,
+				'sessionMode'        => $session_mode,
+				'lastId'             => $last_id,
+				'sessionUrlBase'     => add_query_arg( $session_query_args, admin_url( 'admin.php' ) ),
+				'sessionEditUrlBase' => add_query_arg( array_merge( $session_query_args, array( 'mode' => 'edit' ) ), admin_url( 'admin.php' ) ),
+				'editUrlBase'        => add_query_arg(
+					array_merge(
+						$session_query_args,
+						array(
+							'mode' => 'edit',
+							'edit' => '__ID__',
+						)
+					),
+					admin_url( 'admin.php' )
+				),
+				'deleteUrlBase'      => admin_url( 'admin-post.php?action=scf_delete_chat_message&id=__ID__&session_id=__SESSION__&mode=edit&_wpnonce=__NONCE__' ),
+				'deleteNonces'       => $delete_nonces,
+				'labels'             => array(
 					'admin'         => __( '客服', 'shop-custom-features' ),
 					'edit'          => __( '编辑', 'shop-custom-features' ),
 					'delete'        => __( '删除', 'shop-custom-features' ),
 					'view'          => __( '查看会话', 'shop-custom-features' ),
+					'editSession'   => __( '编辑会话', 'shop-custom-features' ),
 					'confirmDelete' => __( '确定删除此消息？', 'shop-custom-features' ),
 				),
 			)
@@ -542,10 +562,23 @@ class SCF_Chat {
 		$table = $this->get_table_name();
 
 		$session_filter = isset( $_GET['session_id'] ) ? sanitize_text_field( wp_unslash( $_GET['session_id'] ) ) : '';
+		$session_mode   = ( isset( $_GET['mode'] ) && 'edit' === sanitize_text_field( wp_unslash( $_GET['mode'] ) ) ) ? 'edit' : 'view';
 		$edit_id        = isset( $_GET['edit'] ) ? absint( $_GET['edit'] ) : 0;
+		$can_edit_msgs  = ( 'edit' === $session_mode );
 
 		if ( $edit_id ) {
-			$this->render_edit_message_page( $edit_id );
+			if ( 'edit' !== $session_mode ) {
+				wp_safe_redirect(
+					admin_url(
+						'admin.php?page=scf-chat&session_id=' . rawurlencode(
+							isset( $_GET['session_id'] ) ? sanitize_text_field( wp_unslash( $_GET['session_id'] ) ) : ''
+						) . '&mode=edit&edit=' . $edit_id
+					)
+				);
+				exit;
+			}
+
+			$this->render_edit_message_page( $edit_id, $session_mode );
 			return;
 		}
 
@@ -583,9 +616,17 @@ class SCF_Chat {
 						</span>
 					</p>
 
-					<h2><?php esc_html_e( '会话详情', 'shop-custom-features' ); ?></h2>
+					<h2>
+						<?php echo $can_edit_msgs ? esc_html__( '编辑会话', 'shop-custom-features' ) : esc_html__( '查看会话', 'shop-custom-features' ); ?>
+					</h2>
 
-					<div id="scf-admin-chat-thread" class="scf-admin-chat-thread">
+					<?php if ( $can_edit_msgs ) : ?>
+						<p class="description"><?php esc_html_e( '可编辑或删除会话中的消息，也可回复访客。', 'shop-custom-features' ); ?></p>
+					<?php else : ?>
+						<p class="description"><?php esc_html_e( '只读查看会话消息，可回复访客。如需编辑或删除消息，请使用「编辑会话」。', 'shop-custom-features' ); ?></p>
+					<?php endif; ?>
+
+					<div id="scf-admin-chat-thread" class="scf-admin-chat-thread" data-mode="<?php echo esc_attr( $session_mode ); ?>">
 						<?php if ( empty( $messages ) ) : ?>
 							<p class="description"><?php esc_html_e( '暂无消息', 'shop-custom-features' ); ?></p>
 						<?php else : ?>
@@ -600,11 +641,13 @@ class SCF_Chat {
 											<?php endif; ?>
 											· <?php echo esc_html( mysql2date( 'Y-m-d H:i', $message->created_at ) ); ?>
 										</span>
-										<span class="scf-admin-chat-bubble__actions">
-											<a href="<?php echo esc_url( admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $session_filter ) . '&edit=' . $message->id ) ); ?>"><?php esc_html_e( '编辑', 'shop-custom-features' ); ?></a>
-											|
-											<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scf_delete_chat_message&id=' . $message->id . '&session_id=' . rawurlencode( $session_filter ) ), 'scf_delete_message_' . $message->id ) ); ?>" onclick="return confirm('<?php echo esc_js( __( '确定删除此消息？', 'shop-custom-features' ) ); ?>');"><?php esc_html_e( '删除', 'shop-custom-features' ); ?></a>
-										</span>
+										<?php if ( $can_edit_msgs ) : ?>
+											<span class="scf-admin-chat-bubble__actions">
+												<a href="<?php echo esc_url( admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $session_filter ) . '&mode=edit&edit=' . $message->id ) ); ?>"><?php esc_html_e( '编辑', 'shop-custom-features' ); ?></a>
+												|
+												<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=scf_delete_chat_message&id=' . $message->id . '&session_id=' . rawurlencode( $session_filter ) . '&mode=edit' ), 'scf_delete_message_' . $message->id ) ); ?>" onclick="return confirm('<?php echo esc_js( __( '确定删除此消息？', 'shop-custom-features' ) ); ?>');"><?php esc_html_e( '删除', 'shop-custom-features' ); ?></a>
+											</span>
+										<?php endif; ?>
 									</div>
 								</div>
 							<?php endforeach; ?>
@@ -621,7 +664,7 @@ class SCF_Chat {
 				</div>
 			<?php else : ?>
 				<p class="description">
-					<?php esc_html_e( '点击会话查看详情，可在后台编辑或回复聊天内容。', 'shop-custom-features' ); ?>
+					<?php esc_html_e( '查看会话用于只读浏览和回复；编辑会话可修改或删除消息。', 'shop-custom-features' ); ?>
 					<span class="scf-admin-chat-status">
 						<span class="scf-admin-chat-status__dot"></span>
 						<?php esc_html_e( '实时同步中', 'shop-custom-features' ); ?>
@@ -645,8 +688,10 @@ class SCF_Chat {
 									<td class="scf-session-preview"><?php echo esc_html( wp_trim_words( $message->message, 12, '...' ) ); ?></td>
 									<td><?php echo esc_html( $message->sender_name ); ?></td>
 									<td class="scf-session-time"><?php echo esc_html( mysql2date( 'Y-m-d H:i', $message->created_at ) ); ?></td>
-									<td>
+									<td class="scf-session-actions">
 										<a href="<?php echo esc_url( admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $message->session_id ) ) ); ?>"><?php esc_html_e( '查看会话', 'shop-custom-features' ); ?></a>
+										|
+										<a href="<?php echo esc_url( admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $message->session_id ) . '&mode=edit' ) ); ?>"><?php esc_html_e( '编辑会话', 'shop-custom-features' ); ?></a>
 									</td>
 								</tr>
 							<?php endforeach; ?>
@@ -661,9 +706,10 @@ class SCF_Chat {
 	/**
 	 * Render message edit page.
 	 *
-	 * @param int $message_id Message ID.
+	 * @param int    $message_id   Message ID.
+	 * @param string $session_mode Session mode.
 	 */
-	private function render_edit_message_page( $message_id ) {
+	private function render_edit_message_page( $message_id, $session_mode = 'edit' ) {
 		global $wpdb;
 		$table = $this->get_table_name();
 
@@ -675,17 +721,19 @@ class SCF_Chat {
 		}
 
 		$session_id = isset( $_GET['session_id'] ) ? sanitize_text_field( wp_unslash( $_GET['session_id'] ) ) : $message->session_id;
+		$back_url   = admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $session_id ) . '&mode=edit' );
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( '编辑聊天消息', 'shop-custom-features' ); ?></h1>
 			<p>
-				<a href="<?php echo esc_url( admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $session_id ) ) ); ?>">&larr; <?php esc_html_e( '返回会话', 'shop-custom-features' ); ?></a>
+				<a href="<?php echo esc_url( $back_url ); ?>">&larr; <?php esc_html_e( '返回编辑会话', 'shop-custom-features' ); ?></a>
 			</p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( 'scf_update_message_' . $message_id, 'scf_update_message_nonce' ); ?>
 				<input type="hidden" name="action" value="scf_update_chat_message">
 				<input type="hidden" name="message_id" value="<?php echo esc_attr( $message_id ); ?>">
 				<input type="hidden" name="session_id" value="<?php echo esc_attr( $session_id ); ?>">
+				<input type="hidden" name="session_mode" value="edit">
 				<table class="form-table">
 					<tr>
 						<th><?php esc_html_e( '发送者', 'shop-custom-features' ); ?></th>
@@ -798,7 +846,9 @@ class SCF_Chat {
 			array( '%d' )
 		);
 
-		wp_safe_redirect( admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $session_id ) . '&updated=1' ) );
+		$redirect_url = admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $session_id ) . '&mode=edit&updated=1' );
+
+		wp_safe_redirect( $redirect_url );
 		exit;
 	}
 
@@ -812,13 +862,20 @@ class SCF_Chat {
 
 		$message_id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 		$session_id = isset( $_GET['session_id'] ) ? sanitize_text_field( wp_unslash( $_GET['session_id'] ) ) : '';
+		$mode       = isset( $_GET['mode'] ) ? sanitize_text_field( wp_unslash( $_GET['mode'] ) ) : 'view';
 
 		check_admin_referer( 'scf_delete_message_' . $message_id );
 
 		global $wpdb;
 		$wpdb->delete( $this->get_table_name(), array( 'id' => $message_id ), array( '%d' ) );
 
-		wp_safe_redirect( admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $session_id ) . '&deleted=1' ) );
+		$redirect_url = admin_url( 'admin.php?page=scf-chat&session_id=' . rawurlencode( $session_id ) );
+		if ( 'edit' === $mode ) {
+			$redirect_url = add_query_arg( 'mode', 'edit', $redirect_url );
+		}
+		$redirect_url = add_query_arg( 'deleted', '1', $redirect_url );
+
+		wp_safe_redirect( $redirect_url );
 		exit;
 	}
 

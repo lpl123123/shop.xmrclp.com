@@ -46,12 +46,12 @@ class SCF_Merchant {
 		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save_merchant_meta' ) );
 		add_action( 'add_meta_boxes', array( $this, 'add_product_meta_box' ) );
 		add_action( 'save_post_product', array( $this, 'save_product_merchant' ) );
-		add_action( 'woocommerce_single_product_summary', array( $this, 'display_qr_code' ), 35 );
+		add_action( 'woocommerce_single_product_summary', array( $this, 'render_product_actions' ), 31 );
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 	}
 
 	/**
-	 * Enqueue merchant frontend styles on product pages.
+	 * Enqueue merchant frontend assets on product pages.
 	 */
 	public function enqueue_assets() {
 		if ( ! is_product() ) {
@@ -63,6 +63,25 @@ class SCF_Merchant {
 			SCF_PLUGIN_URL . 'assets/css/merchant.css',
 			array(),
 			SCF_VERSION
+		);
+
+		wp_enqueue_script(
+			'scf-merchant',
+			SCF_PLUGIN_URL . 'assets/js/merchant.js',
+			array(),
+			SCF_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'scf-merchant',
+			'scfMerchant',
+			array(
+				'labels' => array(
+					'saveImage' => __( '保存图片', 'shop-custom-features' ),
+					'saving'    => __( '保存中...', 'shop-custom-features' ),
+				),
+			)
 		);
 	}
 
@@ -242,50 +261,106 @@ class SCF_Merchant {
 	}
 
 	/**
-	 * Display merchant QR code on product page.
+	 * Render buy and QR code action buttons on product page.
 	 */
-	public function display_qr_code() {
+	public function render_product_actions() {
 		global $product;
 
 		if ( ! $product ) {
 			return;
 		}
 
-		$merchant_id = (int) get_post_meta( $product->get_id(), '_scf_merchant_id', true );
+		$buy_button_html = SCF_Custom_Payment::instance()->render_buy_button_for_product( $product );
+		$merchant_data   = $this->get_merchant_display_data( $product->get_id() );
+
+		if ( ! $buy_button_html && ! $merchant_data ) {
+			return;
+		}
+
+		echo '<div class="scf-product-actions">';
+
+		if ( $buy_button_html ) {
+			echo $buy_button_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		}
+
+		if ( $merchant_data ) {
+			$this->render_qrcode_button( $merchant_data );
+		}
+
+		echo '</div>';
+	}
+
+	/**
+	 * Get merchant display data for a product.
+	 *
+	 * @param int $product_id Product ID.
+	 * @return array|null
+	 */
+	public function get_merchant_display_data( $product_id ) {
+		$merchant_id = (int) get_post_meta( $product_id, '_scf_merchant_id', true );
 
 		if ( ! $merchant_id ) {
-			return;
+			return null;
 		}
 
 		$merchant = get_post( $merchant_id );
 
 		if ( ! $merchant || 'publish' !== $merchant->post_status ) {
-			return;
+			return null;
 		}
 
-		$qr_url  = get_the_post_thumbnail_url( $merchant_id, 'medium' );
-		$contact = get_post_meta( $merchant_id, '_scf_merchant_contact', true );
-		$note    = get_post_meta( $merchant_id, '_scf_merchant_note', true );
+		$qr_url       = get_the_post_thumbnail_url( $merchant_id, 'medium' );
+		$qr_full_url  = get_the_post_thumbnail_url( $merchant_id, 'full' );
 
 		if ( ! $qr_url ) {
-			return;
+			return null;
 		}
 
+		return array(
+			'name'        => $merchant->post_title,
+			'contact'     => get_post_meta( $merchant_id, '_scf_merchant_contact', true ),
+			'note'        => get_post_meta( $merchant_id, '_scf_merchant_note', true ),
+			'qr_url'      => $qr_url,
+			'qr_full_url' => $qr_full_url ? $qr_full_url : $qr_url,
+			'filename'    => sanitize_file_name( $merchant->post_title . '-qrcode.png' ),
+		);
+	}
+
+	/**
+	 * Render QR code hover button.
+	 *
+	 * @param array $data Merchant display data.
+	 */
+	private function render_qrcode_button( $data ) {
 		?>
-		<div class="scf-merchant-qrcode">
-			<h4 class="scf-merchant-qrcode__title"><?php esc_html_e( '商家收款码', 'shop-custom-features' ); ?></h4>
-			<p class="scf-merchant-qrcode__name">
-				<strong><?php echo esc_html( $merchant->post_title ); ?></strong>
-			</p>
-			<div class="scf-merchant-qrcode__image">
-				<img src="<?php echo esc_url( $qr_url ); ?>" alt="<?php echo esc_attr( $merchant->post_title ); ?>">
+		<div class="scf-product-action scf-product-action--qrcode scf-qrcode-trigger">
+			<button type="button" class="scf-qrcode-button" aria-expanded="false" aria-haspopup="true">
+				<span class="scf-product-action__icon scf-product-action__icon--qr" aria-hidden="true"></span>
+				<span class="scf-product-action__text"><?php esc_html_e( '商家收款码', 'shop-custom-features' ); ?></span>
+			</button>
+			<div class="scf-qrcode-popup" role="dialog" aria-label="<?php esc_attr_e( '商家收款码', 'shop-custom-features' ); ?>">
+				<div class="scf-qrcode-popup__header">
+					<strong><?php echo esc_html( $data['name'] ); ?></strong>
+					<span><?php esc_html_e( '商家收款码', 'shop-custom-features' ); ?></span>
+				</div>
+				<div class="scf-qrcode-popup__image">
+					<img src="<?php echo esc_url( $data['qr_url'] ); ?>" alt="<?php echo esc_attr( $data['name'] ); ?>" data-full-url="<?php echo esc_url( $data['qr_full_url'] ); ?>">
+				</div>
+				<?php if ( ! empty( $data['contact'] ) ) : ?>
+					<p class="scf-qrcode-popup__contact"><?php echo esc_html( $data['contact'] ); ?></p>
+				<?php endif; ?>
+				<?php if ( ! empty( $data['note'] ) ) : ?>
+					<p class="scf-qrcode-popup__note"><?php echo esc_html( $data['note'] ); ?></p>
+				<?php endif; ?>
+				<button
+					type="button"
+					class="scf-qrcode-save"
+					data-image-url="<?php echo esc_url( $data['qr_full_url'] ); ?>"
+					data-filename="<?php echo esc_attr( $data['filename'] ); ?>"
+				>
+					<?php esc_html_e( '保存图片', 'shop-custom-features' ); ?>
+				</button>
 			</div>
-			<?php if ( $contact ) : ?>
-				<p class="scf-merchant-qrcode__contact"><?php echo esc_html( $contact ); ?></p>
-			<?php endif; ?>
-			<?php if ( $note ) : ?>
-				<p class="scf-merchant-qrcode__note"><?php echo esc_html( $note ); ?></p>
-			<?php endif; ?>
 		</div>
 		<?php
 	}
