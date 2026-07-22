@@ -338,7 +338,7 @@ class SCF_Merchant {
 				<span class="scf-product-action__icon scf-product-action__icon--qr" aria-hidden="true"></span>
 				<span class="scf-product-action__text"><?php esc_html_e( '商家收款码', 'shop-custom-features' ); ?></span>
 			</button>
-			<div class="scf-qrcode-popup" role="dialog" aria-label="<?php esc_attr_e( '商家收款码', 'shop-custom-features' ); ?>">
+			<div class="scf-qrcode-popup" role="dialog" aria-label="<?php esc_attr_e( '商家收款码', 'shop-custom-features' ); ?>" aria-hidden="true">
 				<div class="scf-qrcode-popup__header">
 					<strong><?php echo esc_html( $data['name'] ); ?></strong>
 					<span><?php esc_html_e( '商家收款码', 'shop-custom-features' ); ?></span>
