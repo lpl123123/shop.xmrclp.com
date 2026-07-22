@@ -12,6 +12,20 @@
 
 	var chatIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>';
 	var NEAR_BOTTOM_THRESHOLD = 80;
+	var MOBILE_QUERY = window.matchMedia('(max-width: 480px)');
+
+	var els = {
+		portal: null,
+		backdrop: null,
+		panel: null,
+		toggle: null,
+		closeBtn: null,
+		form: null,
+		messages: null,
+		input: null,
+		nameInput: null,
+		emailInput: null,
+	};
 
 	var state = {
 		open: false,
@@ -25,9 +39,6 @@
 		portalActive: false,
 	};
 
-	var portal = null;
-	var panelHome = { panel: null, backdrop: null };
-
 	function escapeHtml(text) {
 		var div = document.createElement('div');
 		div.textContent = text;
@@ -38,22 +49,14 @@
 		var typeClass = msg.sender_type === 'admin' ? 'admin' : 'visitor';
 		return (
 			'<div class="scf-chat-message scf-chat-message--' + typeClass + '" data-id="' + msg.id + '">' +
-				escapeHtml(msg.message) +
+				'<div class="scf-chat-message__text">' + escapeHtml(msg.message) + '</div>' +
 				'<span class="scf-chat-message__meta">' + escapeHtml(msg.created_at) + '</span>' +
 			'</div>'
 		);
 	}
 
-	function getMessagesContainer() {
-		return document.getElementById('scf-chat-messages');
-	}
-
-	function getPanel() {
-		return root.querySelector('.scf-chat-panel');
-	}
-
-	function getBackdrop() {
-		return root.querySelector('.scf-chat-backdrop');
+	function isMobileLayout() {
+		return MOBILE_QUERY.matches;
 	}
 
 	function isNearBottom(container) {
@@ -74,136 +77,106 @@
 		}
 	}
 
-	function isMobileLayout() {
-		return window.matchMedia('(max-width: 480px)').matches;
-	}
-
 	function ensurePortal() {
-		if (portal) {
-			return portal;
+		if (els.portal) {
+			return els.portal;
 		}
 
-		portal = document.createElement('div');
-		portal.id = 'scf-chat-portal';
-		portal.setAttribute('aria-hidden', 'true');
-		document.body.appendChild(portal);
-		return portal;
+		els.portal = document.createElement('div');
+		els.portal.id = 'scf-chat-portal';
+		els.portal.setAttribute('aria-hidden', 'true');
+		document.body.appendChild(els.portal);
+		return els.portal;
 	}
 
-	function rememberPanelHome() {
-		var panel = getPanel();
-		var backdrop = getBackdrop();
-
-		if (panel && !panelHome.panel) {
-			panelHome.panel = panel;
-		}
-
-		if (backdrop && !panelHome.backdrop) {
-			panelHome.backdrop = backdrop;
-		}
-	}
-
-	function activateMobilePortal(active) {
-		if (!isMobileLayout()) {
-			deactivateMobilePortal();
-			return;
-		}
-
-		rememberPanelHome();
-
-		var panel = getPanel();
-		var backdrop = getBackdrop();
+	function mountOpenLayer() {
 		var host = ensurePortal();
 
-		if (active) {
-			if (backdrop && backdrop.parentNode !== host) {
-				host.appendChild(backdrop);
-			}
-			if (panel && panel.parentNode !== host) {
-				host.appendChild(panel);
-			}
-			host.setAttribute('aria-hidden', 'false');
-			state.portalActive = true;
-			return;
+		if (els.backdrop && els.backdrop.parentNode !== host) {
+			host.appendChild(els.backdrop);
 		}
 
-		deactivateMobilePortal();
+		if (els.panel && els.panel.parentNode !== host) {
+			host.appendChild(els.panel);
+		}
+
+		host.setAttribute('aria-hidden', 'false');
+		state.portalActive = true;
 	}
 
-	function deactivateMobilePortal() {
-		if (!portal) {
+	function restoreLayerHome() {
+		if (!els.portal) {
 			return;
 		}
 
-		var panel = getPanel();
-		var backdrop = getBackdrop();
-
-		if (backdrop && backdrop.parentNode !== root) {
-			root.insertBefore(backdrop, root.firstChild);
+		if (els.backdrop && els.backdrop.parentNode !== root) {
+			root.insertBefore(els.backdrop, root.firstChild);
 		}
 
-		if (panel && panel.parentNode !== root) {
-			var toggle = root.querySelector('.scf-chat-toggle');
-			if (toggle && toggle.nextSibling) {
-				root.insertBefore(panel, toggle.nextSibling);
+		if (els.panel && els.panel.parentNode !== root) {
+			if (els.toggle && els.toggle.nextSibling) {
+				root.insertBefore(els.panel, els.toggle.nextSibling);
 			} else {
-				root.appendChild(panel);
+				root.appendChild(els.panel);
 			}
 		}
 
-		portal.setAttribute('aria-hidden', 'true');
+		els.portal.setAttribute('aria-hidden', 'true');
 		state.portalActive = false;
 	}
 
-	function resetPanelViewportStyles() {
-		var panel = getPanel();
-		if (!panel) {
+	function clearPanelInlineStyles() {
+		if (!els.panel) {
 			return;
 		}
 
-		panel.classList.remove('is-keyboard-open');
-		panel.style.position = '';
-		panel.style.top = '';
-		panel.style.left = '';
-		panel.style.width = '';
-		panel.style.height = '';
-		panel.style.maxHeight = '';
-		panel.style.bottom = '';
-		panel.style.right = '';
-		panel.style.transform = '';
+		els.panel.classList.remove('is-keyboard-open', 'is-mobile');
+		els.panel.style.position = '';
+		els.panel.style.top = '';
+		els.panel.style.left = '';
+		els.panel.style.width = '';
+		els.panel.style.height = '';
+		els.panel.style.maxHeight = '';
+		els.panel.style.bottom = '';
+		els.panel.style.right = '';
+		els.panel.style.transform = '';
 	}
 
-	function syncPanelToViewport() {
-		var panel = getPanel();
-		if (!panel || !panel.classList.contains('is-open') || !isMobileLayout()) {
+	function syncMobileViewport() {
+		if (!els.panel || !state.open || !isMobileLayout()) {
 			return;
 		}
+
+		els.panel.classList.add('is-mobile');
 
 		var viewport = window.visualViewport;
 		if (!viewport) {
-			panel.classList.add('is-keyboard-open');
 			return;
 		}
 
 		var keyboardOpen = viewport.height < (window.innerHeight - 80);
+		els.panel.classList.toggle('is-keyboard-open', keyboardOpen);
 
-		panel.classList.toggle('is-keyboard-open', keyboardOpen);
-		panel.style.position = 'fixed';
-		panel.style.top = viewport.offsetTop + 'px';
-		panel.style.left = viewport.offsetLeft + 'px';
-		panel.style.width = viewport.width + 'px';
-		panel.style.height = viewport.height + 'px';
-		panel.style.maxHeight = viewport.height + 'px';
-		panel.style.bottom = 'auto';
-		panel.style.right = 'auto';
-		panel.style.transform = 'none';
+		els.panel.style.position = 'fixed';
+		els.panel.style.top = viewport.offsetTop + 'px';
+		els.panel.style.left = viewport.offsetLeft + 'px';
+		els.panel.style.width = viewport.width + 'px';
+		els.panel.style.height = viewport.height + 'px';
+		els.panel.style.maxHeight = viewport.height + 'px';
+		els.panel.style.bottom = 'auto';
+		els.panel.style.right = 'auto';
+		els.panel.style.transform = 'none';
 
 		window.requestAnimationFrame(function () {
-			scrollToBottom(getMessagesContainer(), state.stickToBottom);
+			scrollToBottom(els.messages, state.stickToBottom);
 		});
 	}
 
 	function lockBodyScroll(locked) {
+		if (!isMobileLayout()) {
+			return;
+		}
+
 		if (locked) {
 			state.bodyScrollY = window.scrollY || window.pageYOffset || 0;
 			document.documentElement.classList.add('scf-chat-body-lock');
@@ -233,21 +206,22 @@
 
 		var handler = function () {
 			if (state.open && isMobileLayout()) {
-				syncPanelToViewport();
+				syncMobileViewport();
 			}
 		};
 
 		window.visualViewport.addEventListener('resize', handler);
 		window.visualViewport.addEventListener('scroll', handler);
+		window.addEventListener('resize', handler);
 	}
 
-	function bindMessagesScroll(container) {
-		if (!container) {
+	function bindMessagesScroll() {
+		if (!els.messages) {
 			return;
 		}
 
-		container.addEventListener('scroll', function () {
-			state.stickToBottom = isNearBottom(container);
+		els.messages.addEventListener('scroll', function () {
+			state.stickToBottom = isNearBottom(els.messages);
 		}, { passive: true });
 	}
 
@@ -262,11 +236,14 @@
 			el.focus();
 		}
 
-		window.scrollTo(0, state.bodyScrollY);
+		if (isMobileLayout()) {
+			window.scrollTo(0, state.bodyScrollY);
+		}
 	}
 
 	function bindInputFocusHandlers() {
-		var focusables = root.querySelectorAll('#scf-chat-input, #scf-chat-name, #scf-chat-email');
+		var focusables = [els.input, els.nameInput, els.emailInput].filter(Boolean);
+
 		focusables.forEach(function (el) {
 			el.addEventListener('touchstart', function () {
 				state.stickToBottom = true;
@@ -274,52 +251,83 @@
 
 			el.addEventListener('focus', function () {
 				state.stickToBottom = true;
+
+				if (!isMobileLayout()) {
+					return;
+				}
+
 				window.scrollTo(0, state.bodyScrollY);
-				syncPanelToViewport();
-				window.setTimeout(syncPanelToViewport, 50);
-				window.setTimeout(syncPanelToViewport, 150);
-				window.setTimeout(syncPanelToViewport, 350);
+				syncMobileViewport();
+				window.setTimeout(syncMobileViewport, 60);
+				window.setTimeout(syncMobileViewport, 180);
+				window.setTimeout(syncMobileViewport, 360);
+			});
+		});
+	}
+
+	function bindPanelGuards() {
+		if (!els.panel) {
+			return;
+		}
+
+		['click', 'mousedown', 'touchstart'].forEach(function (eventName) {
+			els.panel.addEventListener(eventName, function (event) {
+				event.stopPropagation();
 			});
 		});
 	}
 
 	function setPanelOpen(isOpen) {
 		state.open = isOpen;
-		var panel = getPanel();
-		var toggle = root.querySelector('.scf-chat-toggle');
-		var backdrop = getBackdrop();
 
 		root.classList.toggle('is-active', isOpen);
 
-		if (panel) {
-			panel.classList.toggle('is-open', isOpen);
+		if (els.panel) {
+			els.panel.classList.toggle('is-open', isOpen);
+			els.panel.classList.toggle('is-mobile', isOpen && isMobileLayout());
 		}
 
-		if (backdrop) {
-			backdrop.classList.toggle('is-visible', isOpen);
-			backdrop.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+		if (els.backdrop) {
+			els.backdrop.classList.toggle('is-visible', isOpen);
+			els.backdrop.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
 		}
 
-		if (toggle) {
-			toggle.classList.toggle('is-hidden', isOpen);
-			toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+		if (els.toggle) {
+			els.toggle.classList.toggle('is-hidden', isOpen);
+			els.toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
 		}
 
 		if (isOpen) {
 			state.stickToBottom = true;
+			mountOpenLayer();
 			lockBodyScroll(isMobileLayout());
-			activateMobilePortal(true);
-			syncPanelToViewport();
-			window.setTimeout(syncPanelToViewport, 320);
+
+			if (isMobileLayout()) {
+				syncMobileViewport();
+				window.setTimeout(syncMobileViewport, 320);
+			}
+
 			fetchMessages(true);
 			startPolling();
 			return;
 		}
 
 		stopPolling();
-		resetPanelViewportStyles();
-		deactivateMobilePortal();
+		clearPanelInlineStyles();
+		restoreLayerHome();
 		lockBodyScroll(false);
+	}
+
+	function cacheElements() {
+		els.backdrop = root.querySelector('.scf-chat-backdrop');
+		els.toggle = root.querySelector('.scf-chat-toggle');
+		els.panel = root.querySelector('.scf-chat-panel');
+		els.closeBtn = root.querySelector('.scf-chat-close');
+		els.form = root.querySelector('#scf-chat-form');
+		els.messages = root.querySelector('#scf-chat-messages');
+		els.input = root.querySelector('#scf-chat-input');
+		els.nameInput = root.querySelector('#scf-chat-name');
+		els.emailInput = root.querySelector('#scf-chat-email');
 	}
 
 	function buildUI() {
@@ -346,44 +354,34 @@
 				'</form>' +
 			'</div>';
 
-		rememberPanelHome();
-
-		var toggle = root.querySelector('.scf-chat-toggle');
-		var closeBtn = root.querySelector('.scf-chat-close');
-		var backdrop = getBackdrop();
-		var form = root.querySelector('#scf-chat-form');
-		var messagesContainer = getMessagesContainer();
-
-		bindMessagesScroll(messagesContainer);
+		cacheElements();
+		bindMessagesScroll();
 		bindInputFocusHandlers();
+		bindPanelGuards();
 		bindViewportListeners();
 
-		function openChat(event) {
-			if (event) {
-				event.preventDefault();
-				event.stopPropagation();
-			}
-
+		els.toggle.addEventListener('click', function (event) {
+			event.preventDefault();
+			event.stopPropagation();
 			if (!state.open) {
 				setPanelOpen(true);
 			}
-		}
+		});
 
-		function closeChat(event) {
-			if (event) {
-				event.preventDefault();
-				event.stopPropagation();
-			}
-
+		els.closeBtn.addEventListener('click', function (event) {
+			event.preventDefault();
+			event.stopPropagation();
 			setPanelOpen(false);
-		}
+		});
 
-		toggle.addEventListener('click', openChat);
-		closeBtn.addEventListener('click', closeChat);
-		backdrop.addEventListener('click', closeChat);
+		els.backdrop.addEventListener('click', function (event) {
+			event.preventDefault();
+			event.stopPropagation();
+			setPanelOpen(false);
+		});
 
-		form.addEventListener('submit', function (e) {
-			e.preventDefault();
+		els.form.addEventListener('submit', function (event) {
+			event.preventDefault();
 			sendMessage();
 		});
 	}
@@ -411,51 +409,42 @@
 	}
 
 	function appendMessages(messages, forceScroll) {
-		var container = getMessagesContainer();
-		if (!container) {
+		if (!els.messages) {
 			return;
 		}
 
-		var wasNearBottom = isNearBottom(container);
+		var wasNearBottom = isNearBottom(els.messages);
 		var added = false;
 
 		messages.forEach(function (msg) {
 			if (msg.id <= state.lastId) {
 				return;
 			}
-			if (container.querySelector('[data-id="' + msg.id + '"]')) {
+			if (els.messages.querySelector('[data-id="' + msg.id + '"]')) {
 				return;
 			}
-			container.insertAdjacentHTML('beforeend', renderMessage(msg));
+			els.messages.insertAdjacentHTML('beforeend', renderMessage(msg));
 			state.lastId = msg.id;
 			added = true;
 		});
 
 		if (added && (forceScroll || (state.stickToBottom && wasNearBottom))) {
-			scrollToBottom(container, true);
+			scrollToBottom(els.messages, true);
 		}
 	}
 
 	function sendMessage() {
-		if (state.sending) {
+		if (state.sending || !els.input) {
 			return;
 		}
 
-		var input = document.getElementById('scf-chat-input');
-		var nameInput = document.getElementById('scf-chat-name');
-		var emailInput = document.getElementById('scf-chat-email');
-
-		if (!input) {
-			return;
-		}
-
-		var message = input.value.trim();
+		var message = els.input.value.trim();
 		if (!message) {
 			return;
 		}
 
-		state.name = nameInput ? nameInput.value.trim() : '';
-		state.email = emailInput ? emailInput.value.trim() : '';
+		state.name = els.nameInput ? els.nameInput.value.trim() : '';
+		state.email = els.emailInput ? els.emailInput.value.trim() : '';
 		state.sending = true;
 		state.stickToBottom = true;
 
@@ -476,10 +465,10 @@
 			.then(function (data) {
 				state.sending = false;
 				if (data.success && data.data.message) {
-					input.value = '';
+					els.input.value = '';
 					appendMessages([data.data.message], true);
-					syncPanelToViewport();
-					focusWithoutPageScroll(input);
+					syncMobileViewport();
+					focusWithoutPageScroll(els.input);
 				}
 			})
 			.catch(function () {
