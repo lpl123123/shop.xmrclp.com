@@ -68,6 +68,64 @@ class SCF_Chat {
 	}
 
 	/**
+	 * Sessions shown per page in admin list.
+	 *
+	 * @return int
+	 */
+	private function get_sessions_per_page() {
+		return max( 1, (int) apply_filters( 'scf_chat_sessions_per_page', 20 ) );
+	}
+
+	/**
+	 * Current admin list page number.
+	 *
+	 * @return int
+	 */
+	private function get_current_list_page() {
+		return max( 1, isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1 );
+	}
+
+	/**
+	 * Count distinct chat sessions.
+	 *
+	 * @return int
+	 */
+	private function count_sessions() {
+		global $wpdb;
+
+		return (int) $wpdb->get_var( "SELECT COUNT(DISTINCT session_id) FROM {$this->get_table_name()}" );
+	}
+
+	/**
+	 * Fetch latest message row for each session with pagination.
+	 *
+	 * @param int $page     Page number.
+	 * @param int $per_page Items per page.
+	 * @return array
+	 */
+	private function fetch_session_summaries( $page, $per_page ) {
+		global $wpdb;
+		$table  = $this->get_table_name();
+		$page   = max( 1, (int) $page );
+		$offset = ( $page - 1 ) * $per_page;
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT m.* FROM {$table} m
+				INNER JOIN (
+					SELECT session_id, MAX(id) AS max_id
+					FROM {$table}
+					GROUP BY session_id
+				) latest ON m.id = latest.max_id
+				ORDER BY m.created_at DESC
+				LIMIT %d OFFSET %d",
+				$per_page,
+				$offset
+			)
+		);
+	}
+
+	/**
 	 * Register admin menu pages.
 	 */
 	public function register_admin_menu() {
@@ -192,6 +250,8 @@ class SCF_Chat {
 
 		$session_filter = isset( $_GET['session_id'] ) ? sanitize_text_field( wp_unslash( $_GET['session_id'] ) ) : '';
 		$session_mode   = ( isset( $_GET['mode'] ) && 'edit' === sanitize_text_field( wp_unslash( $_GET['mode'] ) ) ) ? 'edit' : 'view';
+		$list_page      = empty( $session_filter ) ? $this->get_current_list_page() : 0;
+		$per_page       = $this->get_sessions_per_page();
 		$last_id        = 0;
 		$delete_nonces  = array();
 
@@ -232,6 +292,8 @@ class SCF_Chat {
 				'nonce'              => wp_create_nonce( 'scf_chat_admin_nonce' ),
 				'sessionId'          => $session_filter,
 				'sessionMode'        => $session_mode,
+				'listPage'           => $list_page,
+				'perPage'            => $per_page,
 				'lastId'             => $last_id,
 				'sessionUrlBase'     => add_query_arg( $session_query_args, admin_url( 'admin.php' ) ),
 				'sessionEditUrlBase' => add_query_arg( array_merge( $session_query_args, array( 'mode' => 'edit' ) ), admin_url( 'admin.php' ) ),
@@ -499,20 +561,16 @@ class SCF_Chat {
 			wp_send_json_error( array( 'message' => __( '权限不足', 'shop-custom-features' ) ), 403 );
 		}
 
-		global $wpdb;
-		$table = $this->get_table_name();
+		$page     = isset( $_POST['paged'] ) ? max( 1, absint( $_POST['paged'] ) ) : 1;
+		$per_page = isset( $_POST['per_page'] ) ? max( 1, min( 100, absint( $_POST['per_page'] ) ) ) : $this->get_sessions_per_page();
+		$total    = $this->count_sessions();
+		$pages    = max( 1, (int) ceil( $total / $per_page ) );
 
-		$rows = $wpdb->get_results(
-			"SELECT m.* FROM {$table} m
-			INNER JOIN (
-				SELECT session_id, MAX(id) AS max_id
-				FROM {$table}
-				GROUP BY session_id
-			) latest ON m.id = latest.max_id
-			ORDER BY m.created_at DESC
-			LIMIT 100"
-		);
+		if ( $page > $pages ) {
+			$page = $pages;
+		}
 
+		$rows     = $this->fetch_session_summaries( $page, $per_page );
 		$sessions = array();
 
 		foreach ( $rows ? $rows : array() as $row ) {
@@ -524,7 +582,15 @@ class SCF_Chat {
 			);
 		}
 
-		wp_send_json_success( array( 'sessions' => $sessions ) );
+		wp_send_json_success(
+			array(
+				'sessions'    => $sessions,
+				'total'       => $total,
+				'paged'       => $page,
+				'per_page'    => $per_page,
+				'total_pages' => $pages,
+			)
+		);
 	}
 
 	/**
@@ -609,16 +675,11 @@ class SCF_Chat {
 				)
 			);
 		} else {
-			$messages = $wpdb->get_results(
-				"SELECT m.* FROM {$table} m
-				INNER JOIN (
-					SELECT session_id, MAX(id) AS max_id
-					FROM {$table}
-					GROUP BY session_id
-				) latest ON m.id = latest.max_id
-				ORDER BY m.created_at DESC
-				LIMIT 100"
-			);
+			$per_page       = $this->get_sessions_per_page();
+			$total_sessions = $this->count_sessions();
+			$total_pages    = max( 1, (int) ceil( $total_sessions / $per_page ) );
+			$current_page   = min( $this->get_current_list_page(), $total_pages );
+			$messages       = $this->fetch_session_summaries( $current_page, $per_page );
 		}
 
 		?>
@@ -689,7 +750,39 @@ class SCF_Chat {
 						<?php esc_html_e( '实时同步中', 'shop-custom-features' ); ?>
 					</span>
 				</p>
-				<table class="widefat striped">
+				<div class="tablenav top scf-admin-sessions-nav">
+					<div class="tablenav-pages">
+						<span class="displaying-num">
+							<?php
+							printf(
+								/* translators: %d: total session count */
+								esc_html( _n( '共 %d 个会话', '共 %d 个会话', $total_sessions, 'shop-custom-features' ) ),
+								(int) $total_sessions
+							);
+							?>
+						</span>
+						<?php if ( $total_pages > 1 ) : ?>
+							<span class="pagination-links">
+								<?php
+								echo wp_kses_post(
+									paginate_links(
+										array(
+											'base'      => add_query_arg( 'paged', '%#%', admin_url( 'admin.php?page=scf-chat' ) ),
+											'format'    => '',
+											'prev_text' => '&laquo; ' . esc_html__( '上一页', 'shop-custom-features' ),
+											'next_text' => esc_html__( '下一页', 'shop-custom-features' ) . ' &raquo;',
+											'total'     => $total_pages,
+											'current'   => $current_page,
+											'type'      => 'plain',
+										)
+									)
+								);
+								?>
+							</span>
+						<?php endif; ?>
+					</div>
+				</div>
+				<table class="widefat striped scf-admin-sessions-table">
 					<thead>
 						<tr>
 							<th><?php esc_html_e( '最近消息', 'shop-custom-features' ); ?></th>
@@ -717,6 +810,39 @@ class SCF_Chat {
 						<?php endif; ?>
 					</tbody>
 				</table>
+				<?php if ( $total_pages > 1 ) : ?>
+					<div class="tablenav bottom scf-admin-sessions-nav">
+						<div class="tablenav-pages">
+							<span class="displaying-num">
+								<?php
+								printf(
+									/* translators: 1: current page, 2: total pages */
+									esc_html__( '第 %1$d 页，共 %2$d 页', 'shop-custom-features' ),
+									(int) $current_page,
+									(int) $total_pages
+								);
+								?>
+							</span>
+							<span class="pagination-links">
+								<?php
+								echo wp_kses_post(
+									paginate_links(
+										array(
+											'base'      => add_query_arg( 'paged', '%#%', admin_url( 'admin.php?page=scf-chat' ) ),
+											'format'    => '',
+											'prev_text' => '&laquo; ' . esc_html__( '上一页', 'shop-custom-features' ),
+											'next_text' => esc_html__( '下一页', 'shop-custom-features' ) . ' &raquo;',
+											'total'     => $total_pages,
+											'current'   => $current_page,
+											'type'      => 'plain',
+										)
+									)
+								);
+								?>
+							</span>
+						</div>
+					</div>
+				<?php endif; ?>
 			<?php endif; ?>
 		</div>
 		<?php

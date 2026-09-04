@@ -107,3 +107,31 @@
 	from { background-color: #fff8e5; }
 	to { background-color: transparent; }
 }
+
+.scf-admin-sessions-nav {
+	margin: 12px 0;
+}
+
+.scf-admin-sessions-nav .tablenav-pages {
+	float: none;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.scf-admin-sessions-nav .displaying-num {
+	margin-right: 0;
+}
+
+.scf-admin-sessions-nav .pagination-links {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.scf-admin-sessions-table {
+	margin-top: 0;
+}

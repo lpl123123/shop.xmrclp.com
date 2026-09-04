@@ -136,9 +136,15 @@
 	}
 
 	function fetchSessions() {
+		if (!scfChatAdmin.listPage) {
+			return;
+		}
+
 		$.post(scfChatAdmin.ajaxUrl, {
 			action: 'scf_admin_fetch_sessions',
 			nonce: scfChatAdmin.nonce,
+			paged: scfChatAdmin.listPage,
+			per_page: scfChatAdmin.perPage,
 		}).done(function (response) {
 			if (!response.success || !response.data.sessions) {
 				return;
@@ -154,22 +160,27 @@
 				if ($existing.length) {
 					$existing.find('.scf-session-preview').text(session.preview);
 					$existing.find('.scf-session-time').text(session.created_at);
-				} else {
-					$tbody.find('td[colspan]').closest('tr').remove();
-					var viewUrl = scfChatAdmin.sessionUrlBase.replace('__SESSION__', encodeURIComponent(session.session_id));
-					var editSessionUrl = scfChatAdmin.sessionEditUrlBase.replace('__SESSION__', encodeURIComponent(session.session_id));
-					$tbody.prepend(
-						'<tr class="scf-new-session" data-session="' + escapeHtml(session.session_id) + '">' +
-							'<td class="scf-session-preview">' + escapeHtml(session.preview) + '</td>' +
-							'<td>' + escapeHtml(session.sender_name) + '</td>' +
-							'<td class="scf-session-time">' + escapeHtml(session.created_at) + '</td>' +
-							'<td class="scf-session-actions">' +
-								'<a href="' + viewUrl + '">' + escapeHtml(scfChatAdmin.labels.view) + '</a> | ' +
-								'<a href="' + editSessionUrl + '">' + escapeHtml(scfChatAdmin.labels.editSession) + '</a>' +
-							'</td>' +
-						'</tr>'
-					);
+					return;
 				}
+
+				if (scfChatAdmin.listPage !== 1) {
+					return;
+				}
+
+				$tbody.find('td[colspan]').closest('tr').remove();
+				var viewUrl = scfChatAdmin.sessionUrlBase.replace('__SESSION__', encodeURIComponent(session.session_id));
+				var editSessionUrl = scfChatAdmin.sessionEditUrlBase.replace('__SESSION__', encodeURIComponent(session.session_id));
+				$tbody.prepend(
+					'<tr class="scf-new-session" data-session="' + escapeHtml(session.session_id) + '">' +
+						'<td class="scf-session-preview">' + escapeHtml(session.preview) + '</td>' +
+						'<td>' + escapeHtml(session.sender_name) + '</td>' +
+						'<td class="scf-session-time">' + escapeHtml(session.created_at) + '</td>' +
+						'<td class="scf-session-actions">' +
+							'<a href="' + viewUrl + '">' + escapeHtml(scfChatAdmin.labels.view) + '</a> | ' +
+							'<a href="' + editSessionUrl + '">' + escapeHtml(scfChatAdmin.labels.editSession) + '</a>' +
+						'</td>' +
+					'</tr>'
+				);
 			});
 		});
 	}
